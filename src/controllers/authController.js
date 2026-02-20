@@ -6,6 +6,7 @@ const bcrypt = require('bcryptjs');
 // @desc    Auth user & get token
 const authUser = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
+  console.log(`Login attempt: ${email}`);
 
   const user = await prisma.user.findUnique({ where: { email } });
 

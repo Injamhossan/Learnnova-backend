@@ -1,18 +1,26 @@
+require('dotenv').config();
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({
+  datasources: {
+    db: {
+      url: process.env.DATABASE_URL,
+    },
+  },
+});
 
 async function main() {
-  console.log('🌱 Seeding Super Admin...');
+  console.log('🌱 Seeding Super Admin for Learnova...\n');
 
-  const email = 'admin@learnova.com';
-  const password = 'Admin@Learnova2024!';
+  const email = 'admin@learnnova.com';
+  const password = 'learnnova123';
 
   // Check if already exists
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
     console.log(`✅ Super Admin already exists: ${email}`);
+    console.log(`🆔 ID: ${existing.id}`);
     await prisma.$disconnect();
     return;
   }
@@ -23,14 +31,13 @@ async function main() {
     data: {
       email,
       passwordHash,
-      fullName: 'Learnova Admin',
+      fullName: 'Learnova Owner',
       role: 'ADMIN',
       isEmailVerified: true,
       isActive: true,
     },
   });
 
-  console.log('');
   console.log('🎉 Super Admin Created Successfully!');
   console.log('━'.repeat(40));
   console.log(`📧 Email    : ${admin.email}`);
@@ -39,13 +46,12 @@ async function main() {
   console.log(`🛡️  Role     : ${admin.role}`);
   console.log(`🆔 ID       : ${admin.id}`);
   console.log('━'.repeat(40));
-  console.log('⚠️  Please change the password after first login!');
-  console.log('');
+  console.log('⚠️  Keep these credentials safe!\n');
 
   await prisma.$disconnect();
 }
 
 main().catch((e) => {
-  console.error('❌ Seed failed:', e);
+  console.error('❌ Seed failed:', e.message);
   process.exit(1);
 });
