@@ -31,6 +31,34 @@ const protect = asyncHandler(async (req, res, next) => {
   }
 });
 
+const isInstructor = asyncHandler(async (req, res, next) => {
+  if (req.user && req.user.role === 'INSTRUCTOR') {
+    const instructor = await prisma.instructor.findUnique({
+      where: { userId: req.user.id }
+    });
+    
+    if (!instructor) {
+      res.status(403);
+      throw new Error('Instructor profile not found');
+    }
+    
+    req.instructor = instructor;
+    next();
+  } else {
+    res.status(403);
+    throw new Error('Access denied. Instructor role required.');
+  }
+});
+
+const isStaff = (req, res, next) => {
+  if (req.user && (req.user.role === 'INSTRUCTOR' || req.user.role === 'ADMIN' || req.user.role === 'SUPER_ADMIN')) {
+    next();
+  } else {
+    res.status(403);
+    throw new Error('Access denied. Staff role required.');
+  }
+};
+
 const isAdmin = (req, res, next) => {
   if (req.user && (req.user.role === 'ADMIN' || req.user.role === 'SUPER_ADMIN')) {
     next();
@@ -49,4 +77,13 @@ const isSuperAdmin = (req, res, next) => {
   }
 };
 
-module.exports = { protect, isAdmin, isSuperAdmin };
+const isStudent = (req, res, next) => {
+  if (req.user && req.user.role === 'STUDENT') {
+    next();
+  } else {
+    res.status(403);
+    throw new Error('Access denied. Student role required.');
+  }
+};
+
+module.exports = { protect, isStudent, isInstructor, isStaff, isAdmin, isSuperAdmin };

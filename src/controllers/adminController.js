@@ -14,6 +14,7 @@ const getDashboardStats = asyncHandler(async (req, res) => {
     totalRevenue,
     recentUsers,
     popularCourses,
+    topInstructors,
     recentEnrollments,
   ] = await Promise.all([
     prisma.user.count(),
@@ -38,6 +39,11 @@ const getDashboardStats = asyncHandler(async (req, res) => {
         category: { select: { name: true } },
       },
     }),
+    prisma.instructor.findMany({
+      take: 5,
+      orderBy: { averageRating: 'desc' },
+      include: { user: { select: { fullName: true, avatarUrl: true } } },
+    }),
     // Enrollment chart data: last 10 days
     prisma.$queryRaw`
       SELECT DATE(enrolled_at) as date, COUNT(*)::int as count
@@ -59,6 +65,7 @@ const getDashboardStats = asyncHandler(async (req, res) => {
     },
     recentUsers,
     popularCourses,
+    topInstructors,
     enrollmentChart: recentEnrollments,
   });
 });
@@ -83,7 +90,6 @@ const getAllUsers = asyncHandler(async (req, res) => {
       ],
     }),
     ...(role && { role }),
-    // CRITICAL: Normal Admins CANNOT see Super Admins
     ...(!isRequesterSuperAdmin && {
       role: { not: 'SUPER_ADMIN' }
     })
@@ -240,10 +246,21 @@ const updateUserRole = asyncHandler(async (req, res) => {
     throw new Error('Super Admin roles are permanent and cannot be modified');
   }
 
-  const updated = await prisma.user.update({
-    where: { id: targetId },
-    data: { role },
-    select: { id: true, fullName: true, email: true, role: true },
+  const updated = await prisma.$transaction(async (tx) => {
+    const updatedUser = await tx.user.update({
+      where: { id: targetId },
+      data: { role },
+      select: { id: true, fullName: true, email: true, role: true },
+    });
+
+    if (updatedUser.role === 'INSTRUCTOR') {
+      const existingInstructor = await tx.instructor.findUnique({ where: { userId: targetId } });
+      if (!existingInstructor) {
+        await tx.instructor.create({ data: { userId: targetId } });
+      }
+    }
+
+    return updatedUser;
   });
 
   res.json(updated);

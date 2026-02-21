@@ -39,13 +39,23 @@ const registerUser = asyncHandler(async (req, res) => {
   const salt = await bcrypt.genSalt(10);
   const passwordHash = await bcrypt.hash(password, salt);
 
-  const user = await prisma.user.create({
-    data: {
-      fullName,
-      email,
-      passwordHash,
-      role: role || 'STUDENT',
-    },
+  const user = await prisma.$transaction(async (tx) => {
+    const newUser = await tx.user.create({
+      data: {
+        fullName,
+        email,
+        passwordHash,
+        role: role?.toUpperCase() || 'STUDENT',
+      },
+    });
+
+    if (newUser.role === 'INSTRUCTOR') {
+      await tx.instructor.create({
+        data: { userId: newUser.id }
+      });
+    }
+
+    return newUser;
   });
 
   if (user) {
