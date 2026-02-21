@@ -1,8 +1,9 @@
-const { prisma } = require('../config/db');
-const asyncHandler = require('express-async-handler');
+import { Request, Response } from 'express';
+import asyncHandler from 'express-async-handler';
+import { prisma } from '../config/db';
 
 // Helper to check course ownership
-const checkCourseOwnership = async (courseId, req) => {
+const checkCourseOwnership = async (courseId: string, req: Request) => {
   const course = await prisma.course.findUnique({ where: { id: courseId } });
   if (!course) return { error: 'Course not found', status: 404 };
   
@@ -15,13 +16,13 @@ const checkCourseOwnership = async (courseId, req) => {
 // ==================== SECTIONS ====================
 
 // @desc    Add a section to a course
-const addSection = asyncHandler(async (req, res) => {
+const addSection = asyncHandler(async (req: Request, res: Response) => {
   const { title, orderIndex } = req.body;
-  const courseId = req.params.courseId;
+  const courseId = req.params.courseId as string;
 
   const ownership = await checkCourseOwnership(courseId, req);
   if (ownership.error) {
-    res.status(ownership.status);
+    res.status(ownership.status as number);
     throw new Error(ownership.error);
   }
 
@@ -37,9 +38,9 @@ const addSection = asyncHandler(async (req, res) => {
 });
 
 // @desc    Update a section
-const updateSection = asyncHandler(async (req, res) => {
+const updateSection = asyncHandler(async (req: Request, res: Response) => {
   const { title, orderIndex } = req.body;
-  const sectionId = req.params.id;
+  const sectionId = req.params.id as string;
 
   const section = await prisma.courseSection.findUnique({ 
     where: { id: sectionId },
@@ -53,7 +54,7 @@ const updateSection = asyncHandler(async (req, res) => {
 
   const ownership = await checkCourseOwnership(section.courseId, req);
   if (ownership.error) {
-    res.status(ownership.status);
+    res.status(ownership.status as number);
     throw new Error(ownership.error);
   }
 
@@ -66,8 +67,8 @@ const updateSection = asyncHandler(async (req, res) => {
 });
 
 // @desc    Delete a section
-const deleteSection = asyncHandler(async (req, res) => {
-  const sectionId = req.params.id;
+const deleteSection = asyncHandler(async (req: Request, res: Response) => {
+  const sectionId = req.params.id as string;
 
   const section = await prisma.courseSection.findUnique({ 
     where: { id: sectionId }
@@ -80,7 +81,7 @@ const deleteSection = asyncHandler(async (req, res) => {
 
   const ownership = await checkCourseOwnership(section.courseId, req);
   if (ownership.error) {
-    res.status(ownership.status);
+    res.status(ownership.status as number);
     throw new Error(ownership.error);
   }
 
@@ -91,9 +92,9 @@ const deleteSection = asyncHandler(async (req, res) => {
 // ==================== LESSONS ====================
 
 // @desc    Add a lesson to a section
-const addLesson = asyncHandler(async (req, res) => {
+const addLesson = asyncHandler(async (req: Request, res: Response) => {
   const { title, description, videoUrl, videoDurationSeconds, isPreview, orderIndex, resources } = req.body;
-  const sectionId = req.params.sectionId;
+  const sectionId = req.params.sectionId as string;
 
   const section = await prisma.courseSection.findUnique({ 
     where: { id: sectionId },
@@ -107,7 +108,7 @@ const addLesson = asyncHandler(async (req, res) => {
 
   const ownership = await checkCourseOwnership(section.courseId, req);
   if (ownership.error) {
-    res.status(ownership.status);
+    res.status(ownership.status as number);
     throw new Error(ownership.error);
   }
 
@@ -128,11 +129,11 @@ const addLesson = asyncHandler(async (req, res) => {
 });
 
 // @desc    Update a lesson
-const updateLesson = asyncHandler(async (req, res) => {
-  const lessonId = req.params.id;
+const updateLesson = asyncHandler(async (req: Request, res: Response) => {
+  const lessonId = req.params.id as string;
   const { title, description, videoUrl, videoDurationSeconds, isPreview, orderIndex, resources } = req.body;
 
-  const lesson = await prisma.courseLesson.findUnique({
+  const lesson: any = await prisma.courseLesson.findUnique({
     where: { id: lessonId },
     include: { section: { include: { course: true } } }
   });
@@ -144,7 +145,7 @@ const updateLesson = asyncHandler(async (req, res) => {
 
   const ownership = await checkCourseOwnership(lesson.section.courseId, req);
   if (ownership.error) {
-    res.status(ownership.status);
+    res.status(ownership.status as number);
     throw new Error(ownership.error);
   }
 
@@ -165,10 +166,10 @@ const updateLesson = asyncHandler(async (req, res) => {
 });
 
 // @desc    Delete a lesson
-const deleteLesson = asyncHandler(async (req, res) => {
-  const lessonId = req.params.id;
+const deleteLesson = asyncHandler(async (req: Request, res: Response) => {
+  const lessonId = req.params.id as string;
 
-  const lesson = await prisma.courseLesson.findUnique({
+  const lesson: any = await prisma.courseLesson.findUnique({
     where: { id: lessonId },
     include: { section: true }
   });
@@ -180,7 +181,7 @@ const deleteLesson = asyncHandler(async (req, res) => {
 
   const ownership = await checkCourseOwnership(lesson.section.courseId, req);
   if (ownership.error) {
-    res.status(ownership.status);
+    res.status(ownership.status as number);
     throw new Error(ownership.error);
   }
 
@@ -188,7 +189,7 @@ const deleteLesson = asyncHandler(async (req, res) => {
   res.json({ message: 'Lesson removed' });
 });
 
-module.exports = {
+export {
   addSection,
   updateSection,
   deleteSection,

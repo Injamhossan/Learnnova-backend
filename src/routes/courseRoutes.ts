@@ -1,22 +1,23 @@
-const express = require('express');
-const router = express.Router();
-const { 
+import express from 'express';
+import { 
   getCourses, 
   getMyCourses,
   createCourse, 
   updateCourse,
   deleteCourse,
   getInstructorStats
-} = require('../controllers/courseController');
-const {
+} from '../controllers/courseController';
+import {
   addSection,
   updateSection,
   deleteSection,
   addLesson,
   updateLesson,
   deleteLesson
-} = require('../controllers/lessonController');
-const { protect, isInstructor, isStaff } = require('../middlewares/authMiddleware');
+} from '../controllers/lessonController';
+import { protect, isInstructor, isStaff } from '../middlewares/authMiddleware';
+
+const router = express.Router();
 
 // Public routes
 router.get('/', getCourses);
@@ -42,4 +43,4 @@ router.route('/sections/:id').put(isStaff, updateSection).delete(isStaff, delete
 router.post('/sections/:sectionId/lessons', isStaff, addLesson);
 router.route('/lessons/:id').put(isStaff, updateLesson).delete(isStaff, deleteLesson);
 
-module.exports = router;
+export default router;

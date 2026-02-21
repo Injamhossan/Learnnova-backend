@@ -1,11 +1,12 @@
-const { prisma } = require('../config/db');
-const asyncHandler = require('express-async-handler');
-const slugify = require('slugify');
+import { Request, Response } from 'express';
+import asyncHandler from 'express-async-handler';
+import slugify from 'slugify';
+import { prisma } from '../config/db';
 
 // @desc    Get all published courses
 // @route   GET /api/courses
 // @access  Public
-const getCourses = asyncHandler(async (req, res) => {
+const getCourses = asyncHandler(async (req: Request, res: Response) => {
   const courses = await prisma.course.findMany({
     where: { isPublished: true },
     include: {
@@ -21,11 +22,9 @@ const getCourses = asyncHandler(async (req, res) => {
 // @desc    Get instructor's own courses
 // @route   GET /api/courses/my-courses
 // @access  Private/Instructor
-const getMyCourses = asyncHandler(async (req, res) => {
+const getMyCourses = asyncHandler(async (req: Request, res: Response) => {
   const instructorId = req.instructor ? req.instructor.id : null;
   
-  // If admin is requesting, they might want all or need to specify an instructor. 
-  // For now, let's stick to the requester's courses.
   if (!instructorId) {
     res.status(400);
     throw new Error('Instructor profile not found');
@@ -37,7 +36,7 @@ const getMyCourses = asyncHandler(async (req, res) => {
       category: { select: { name: true, slug: true } },
       _count: { select: { enrollments: true } }
     },
-    orderBy: { createdAt: 'desc' }
+    orderBy: { createdAt: 'desc' } as any
   });
   res.json(courses);
 });
@@ -45,7 +44,7 @@ const getMyCourses = asyncHandler(async (req, res) => {
 // @desc    Create a course
 // @route   POST /api/courses
 // @access  Private/Instructor
-const createCourse = asyncHandler(async (req, res) => {
+const createCourse = asyncHandler(async (req: Request, res: Response) => {
   const { title, description, categoryId, price, level, thumbnailUrl } = req.body;
   const instructorId = req.instructor.id;
 
@@ -70,11 +69,12 @@ const createCourse = asyncHandler(async (req, res) => {
 // @desc    Update a course
 // @route   PUT /api/courses/:id
 // @access  Private/Instructor
-const updateCourse = asyncHandler(async (req, res) => {
+const updateCourse = asyncHandler(async (req: Request, res: Response) => {
   const { title, description, categoryId, price, level, thumbnailUrl, isPublished, whatYouWillLearn, requirements } = req.body;
+  const courseId = req.params.id as string;
   
   const course = await prisma.course.findUnique({
-    where: { id: req.params.id }
+    where: { id: courseId }
   });
 
   if (!course) {
@@ -88,7 +88,7 @@ const updateCourse = asyncHandler(async (req, res) => {
     throw new Error('Not authorized to edit this course');
   }
 
-  const data = {
+  const data: any = {
     title,
     description,
     categoryId,
@@ -109,7 +109,7 @@ const updateCourse = asyncHandler(async (req, res) => {
   }
 
   const updatedCourse = await prisma.course.update({
-    where: { id: req.params.id },
+    where: { id: courseId },
     data
   });
 
@@ -119,9 +119,10 @@ const updateCourse = asyncHandler(async (req, res) => {
 // @desc    Delete a course
 // @route   DELETE /api/courses/:id
 // @access  Private/Instructor/Admin
-const deleteCourse = asyncHandler(async (req, res) => {
+const deleteCourse = asyncHandler(async (req: Request, res: Response) => {
+  const courseId = req.params.id as string;
   const course = await prisma.course.findUnique({
-    where: { id: req.params.id }
+    where: { id: courseId }
   });
 
   if (!course) {
@@ -136,7 +137,7 @@ const deleteCourse = asyncHandler(async (req, res) => {
   }
 
   await prisma.course.delete({
-    where: { id: req.params.id }
+    where: { id: courseId }
   });
 
   res.json({ message: 'Course deleted successfully' });
@@ -145,14 +146,14 @@ const deleteCourse = asyncHandler(async (req, res) => {
 // @desc    Get Instructor Dashboard Stats
 // @route   GET /api/courses/instructor/stats
 // @access  Private/Instructor
-const getInstructorStats = asyncHandler(async (req, res) => {
+const getInstructorStats = asyncHandler(async (req: Request, res: Response) => {
   const instructorId = req.instructor.id;
 
   const [courseCount, totalEnrollments, earnings] = await Promise.all([
     prisma.course.count({ where: { instructorId } }),
     prisma.enrollment.count({ where: { course: { instructorId } } }),
     prisma.payment.aggregate({
-      where: { course: { instructorId }, status: 'COMPLETED' },
+      where: { course: { instructorId }, status: 'COMPLETED' as any },
       _sum: { amount: true }
     })
   ]);
@@ -161,7 +162,7 @@ const getInstructorStats = asyncHandler(async (req, res) => {
   const recentEnrollments = await prisma.enrollment.findMany({
     where: { course: { instructorId } },
     take: 5,
-    orderBy: { enrolledAt: 'desc' },
+    orderBy: { enrolledAt: 'desc' } as any,
     include: {
       user: { select: { fullName: true, email: true, avatarUrl: true } },
       course: { select: { title: true } }
@@ -171,12 +172,12 @@ const getInstructorStats = asyncHandler(async (req, res) => {
   res.json({
     totalCourses: courseCount,
     totalStudents: totalEnrollments,
-    totalEarnings: earnings._sum.amount || 0,
+    totalEarnings: (earnings._sum as any).amount || 0,
     recentEnrollments
   });
 });
 
-module.exports = {
+export {
   getCourses,
   getMyCourses,
   createCourse,

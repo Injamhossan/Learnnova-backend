@@ -1,12 +1,13 @@
-const { prisma } = require('../config/db');
-const asyncHandler = require('express-async-handler');
+import { Request, Response } from 'express';
+import asyncHandler from 'express-async-handler';
+import { prisma } from '../config/db';
 
 // @desc    Enroll in a course
 // @route   POST /api/students/enroll/:courseId
 // @access  Private/Student
-const enrollInCourse = asyncHandler(async (req, res) => {
-  const courseId = req.params.courseId;
-  const userId = req.user.id;
+const enrollInCourse = asyncHandler(async (req: Request, res: Response) => {
+  const courseId = req.params.courseId as string;
+  const userId = req.user.id as string;
 
   const course = await prisma.course.findUnique({ where: { id: courseId } });
   if (!course) {
@@ -46,7 +47,7 @@ const enrollInCourse = asyncHandler(async (req, res) => {
 // @desc    Get my enrolled courses
 // @route   GET /api/students/my-courses
 // @access  Private/Student
-const getMyEnrolledCourses = asyncHandler(async (req, res) => {
+const getMyEnrolledCourses = asyncHandler(async (req: Request, res: Response) => {
   const enrollments = await prisma.enrollment.findMany({
     where: { userId: req.user.id },
     include: {
@@ -57,13 +58,13 @@ const getMyEnrolledCourses = asyncHandler(async (req, res) => {
         }
       }
     },
-    orderBy: { enrolledAt: 'desc' }
+    orderBy: { enrolledAt: 'desc' } as any
   });
 
   res.json(enrollments);
 });
 
-module.exports = {
+export {
   enrollInCourse,
   getMyEnrolledCourses
 };

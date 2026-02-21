@@ -1,10 +1,11 @@
-const { prisma } = require('../config/db');
-const asyncHandler = require('express-async-handler');
-const generateToken = require('../utils/generateToken');
-const bcrypt = require('bcryptjs');
+import { Request, Response } from 'express';
+import asyncHandler from 'express-async-handler';
+import bcrypt from 'bcryptjs';
+import { prisma } from '../config/db';
+import generateToken from '../utils/generateToken';
 
 // @desc    Auth user & get token
-const authUser = asyncHandler(async (req, res) => {
+const authUser = asyncHandler(async (req: Request, res: Response) => {
   const { email, password } = req.body;
   console.log(`Login attempt: ${email}`);
 
@@ -26,7 +27,7 @@ const authUser = asyncHandler(async (req, res) => {
 });
 
 // @desc    Register a new user
-const registerUser = asyncHandler(async (req, res) => {
+const registerUser = asyncHandler(async (req: Request, res: Response) => {
   const { fullName, email, password, role } = req.body;
 
   const userExists = await prisma.user.findUnique({ where: { email } });
@@ -73,7 +74,7 @@ const registerUser = asyncHandler(async (req, res) => {
 });
 
 // @desc    Handle social login
-const socialLogin = asyncHandler(async (req, res) => {
+const socialLogin = asyncHandler(async (req: Request, res: Response) => {
   const { email, fullName, avatarUrl } = req.body;
 
   let user = await prisma.user.findUnique({ where: { email } });
@@ -105,4 +106,4 @@ const socialLogin = asyncHandler(async (req, res) => {
   });
 });
 
-module.exports = { authUser, registerUser, socialLogin };
+export { authUser, registerUser, socialLogin };

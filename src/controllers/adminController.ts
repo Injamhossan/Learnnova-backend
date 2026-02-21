@@ -1,10 +1,11 @@
-const { prisma } = require('../config/db');
-const asyncHandler = require('express-async-handler');
+import { Request, Response } from 'express';
+import asyncHandler from 'express-async-handler';
+import { prisma } from '../config/db';
 
 // @desc    Get dashboard stats
 // @route   GET /api/admin/stats
 // @access  Admin
-const getDashboardStats = asyncHandler(async (req, res) => {
+const getDashboardStats = asyncHandler(async (req: Request, res: Response) => {
   const [
     totalUsers,
     totalInstructors,
@@ -18,13 +19,13 @@ const getDashboardStats = asyncHandler(async (req, res) => {
     recentEnrollments,
   ] = await Promise.all([
     prisma.user.count(),
-    prisma.user.count({ where: { role: 'INSTRUCTOR' } }),
-    prisma.user.count({ where: { role: 'STUDENT' } }),
+    prisma.user.count({ where: { role: 'INSTRUCTOR' as any } }),
+    prisma.user.count({ where: { role: 'STUDENT' as any } }),
     prisma.enrollment.count(),
     prisma.course.count(),
     prisma.payment.aggregate({
       _sum: { amount: true },
-      where: { status: 'COMPLETED' },
+      where: { status: 'COMPLETED' as any },
     }),
     prisma.user.findMany({
       take: 5,
@@ -61,7 +62,7 @@ const getDashboardStats = asyncHandler(async (req, res) => {
       activeStudents,
       totalEnrollments,
       totalCourses,
-      totalRevenue: totalRevenue._sum.amount || 0,
+      totalRevenue: (totalRevenue._sum as any).amount || 0,
     },
     recentUsers,
     popularCourses,
@@ -73,16 +74,16 @@ const getDashboardStats = asyncHandler(async (req, res) => {
 // @desc    Get all users (paginated)
 // @route   GET /api/admin/users
 // @access  Admin
-const getAllUsers = asyncHandler(async (req, res) => {
-  const page = parseInt(req.query.page) || 1;
-  const limit = parseInt(req.query.limit) || 20;
+const getAllUsers = asyncHandler(async (req: Request, res: Response) => {
+  const page = parseInt(req.query.page as string) || 1;
+  const limit = parseInt(req.query.limit as string) || 20;
   const skip = (page - 1) * limit;
-  const search = req.query.search || '';
-  const role = req.query.role || undefined;
+  const search = (req.query.search as string) || '';
+  const role = (req.query.role as string) || undefined;
 
   const isRequesterSuperAdmin = req.user.role === 'SUPER_ADMIN';
 
-  const where = {
+  const where: any = {
     ...(search && {
       OR: [
         { fullName: { contains: search, mode: 'insensitive' } },
@@ -100,7 +101,7 @@ const getAllUsers = asyncHandler(async (req, res) => {
       where,
       skip,
       take: limit,
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: 'desc' } as any,
       select: {
         id: true,
         fullName: true,
@@ -121,8 +122,8 @@ const getAllUsers = asyncHandler(async (req, res) => {
 // @desc    Toggle user active status
 // @route   PATCH /api/admin/users/:id/toggle
 // @access  Admin
-const toggleUserStatus = asyncHandler(async (req, res) => {
-  const targetId = req.params.id;
+const toggleUserStatus = asyncHandler(async (req: Request, res: Response) => {
+  const targetId = req.params.id as string;
   const user = await prisma.user.findUnique({ where: { id: targetId } });
   
   if (!user) {
@@ -136,9 +137,6 @@ const toggleUserStatus = asyncHandler(async (req, res) => {
     throw new Error('Super Admin accounts are protected and cannot be suspended');
   }
 
-  // Normal Admins cannot toggle other Admins if you want to be stricter (optional)
-  // But definitely cannot toggle SUPER_ADMIN (already checked above)
-
   const updated = await prisma.user.update({
     where: { id: targetId },
     data: { isActive: !user.isActive },
@@ -150,13 +148,13 @@ const toggleUserStatus = asyncHandler(async (req, res) => {
 // @desc    Get all courses (admin)
 // @route   GET /api/admin/courses
 // @access  Admin
-const getAllCourses = asyncHandler(async (req, res) => {
-  const page = parseInt(req.query.page) || 1;
-  const limit = parseInt(req.query.limit) || 20;
+const getAllCourses = asyncHandler(async (req: Request, res: Response) => {
+  const page = parseInt(req.query.page as string) || 1;
+  const limit = parseInt(req.query.limit as string) || 20;
   const skip = (page - 1) * limit;
-  const search = req.query.search || '';
+  const search = (req.query.search as string) || '';
 
-  const where = search
+  const where: any = search
     ? { title: { contains: search, mode: 'insensitive' } }
     : {};
 
@@ -165,7 +163,7 @@ const getAllCourses = asyncHandler(async (req, res) => {
       where,
       skip,
       take: limit,
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: 'desc' } as any,
       include: {
         instructor: { include: { user: { select: { fullName: true, email: true } } } },
         category: { select: { name: true } },
@@ -181,14 +179,15 @@ const getAllCourses = asyncHandler(async (req, res) => {
 // @desc    Toggle course published
 // @route   PATCH /api/admin/courses/:id/toggle
 // @access  Admin
-const toggleCoursePublished = asyncHandler(async (req, res) => {
-  const course = await prisma.course.findUnique({ where: { id: req.params.id } });
+const toggleCoursePublished = asyncHandler(async (req: Request, res: Response) => {
+  const courseId = req.params.id as string;
+  const course = await prisma.course.findUnique({ where: { id: courseId } });
   if (!course) {
     res.status(404);
     throw new Error('Course not found');
   }
   const updated = await prisma.course.update({
-    where: { id: req.params.id },
+    where: { id: courseId },
     data: {
       isPublished: !course.isPublished,
       publishedAt: !course.isPublished ? new Date() : null,
@@ -201,9 +200,9 @@ const toggleCoursePublished = asyncHandler(async (req, res) => {
 // @desc    Get all categories
 // @route   GET /api/admin/categories
 // @access  Admin
-const getCategories = asyncHandler(async (req, res) => {
+const getCategories = asyncHandler(async (req: Request, res: Response) => {
   const categories = await prisma.category.findMany({
-    orderBy: { name: 'asc' },
+    orderBy: { name: 'asc' } as any,
     include: { _count: { select: { courses: true } } },
   });
   res.json(categories);
@@ -212,7 +211,7 @@ const getCategories = asyncHandler(async (req, res) => {
 // @desc    Create category
 // @route   POST /api/admin/categories
 // @access  Admin
-const createCategory = asyncHandler(async (req, res) => {
+const createCategory = asyncHandler(async (req: Request, res: Response) => {
   const { name, description, iconUrl } = req.body;
   const slug = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
   const category = await prisma.category.create({
@@ -224,9 +223,9 @@ const createCategory = asyncHandler(async (req, res) => {
 // @desc    Update user role
 // @route   PATCH /api/admin/users/:id/role
 // @access  Super Admin
-const updateUserRole = asyncHandler(async (req, res) => {
+const updateUserRole = asyncHandler(async (req: Request, res: Response) => {
   const { role } = req.body;
-  const targetId = req.params.id;
+  const targetId = req.params.id as string;
 
   // Only SUPER_ADMIN can change roles
   if (req.user.role !== 'SUPER_ADMIN') {
@@ -269,8 +268,8 @@ const updateUserRole = asyncHandler(async (req, res) => {
 // @desc    Delete user
 // @route   DELETE /api/admin/users/:id
 // @access  Super Admin
-const deleteUser = asyncHandler(async (req, res) => {
-  const targetId = req.params.id;
+const deleteUser = asyncHandler(async (req: Request, res: Response) => {
+  const targetId = req.params.id as string;
 
   if (req.user.role !== 'SUPER_ADMIN') {
     res.status(403);
@@ -293,7 +292,7 @@ const deleteUser = asyncHandler(async (req, res) => {
   res.json({ message: 'User removed' });
 });
 
-module.exports = {
+export {
   getDashboardStats,
   getAllUsers,
   toggleUserStatus,

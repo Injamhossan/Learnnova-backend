@@ -1,8 +1,25 @@
-const { prisma } = require('../config/db');
-const asyncHandler = require('express-async-handler');
-const jwt = require('jsonwebtoken');
+import { NextFunction, Request, Response } from 'express';
+import asyncHandler from 'express-async-handler';
+import jwt from 'jsonwebtoken';
+import { prisma } from '../config/db';
 
-const protect = asyncHandler(async (req, res, next) => {
+interface DecodedToken {
+  id: string;
+  iat: number;
+  exp: number;
+}
+
+// Extend Express Request type
+declare global {
+  namespace Express {
+    interface Request {
+      user?: any;
+      instructor?: any;
+    }
+  }
+}
+
+const protect = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
   let token;
 
   if (
@@ -11,7 +28,7 @@ const protect = asyncHandler(async (req, res, next) => {
   ) {
     try {
       token = req.headers.authorization.split(' ')[1];
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as DecodedToken;
 
       req.user = await prisma.user.findUnique({
         where: { id: decoded.id },
@@ -31,7 +48,7 @@ const protect = asyncHandler(async (req, res, next) => {
   }
 });
 
-const isInstructor = asyncHandler(async (req, res, next) => {
+const isInstructor = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
   if (req.user && req.user.role === 'INSTRUCTOR') {
     const instructor = await prisma.instructor.findUnique({
       where: { userId: req.user.id }
@@ -50,7 +67,7 @@ const isInstructor = asyncHandler(async (req, res, next) => {
   }
 });
 
-const isStaff = (req, res, next) => {
+const isStaff = (req: Request, res: Response, next: NextFunction) => {
   if (req.user && (req.user.role === 'INSTRUCTOR' || req.user.role === 'ADMIN' || req.user.role === 'SUPER_ADMIN')) {
     next();
   } else {
@@ -59,7 +76,7 @@ const isStaff = (req, res, next) => {
   }
 };
 
-const isAdmin = (req, res, next) => {
+const isAdmin = (req: Request, res: Response, next: NextFunction) => {
   if (req.user && (req.user.role === 'ADMIN' || req.user.role === 'SUPER_ADMIN')) {
     next();
   } else {
@@ -68,7 +85,7 @@ const isAdmin = (req, res, next) => {
   }
 };
 
-const isSuperAdmin = (req, res, next) => {
+const isSuperAdmin = (req: Request, res: Response, next: NextFunction) => {
   if (req.user && req.user.role === 'SUPER_ADMIN') {
     next();
   } else {
@@ -77,7 +94,7 @@ const isSuperAdmin = (req, res, next) => {
   }
 };
 
-const isStudent = (req, res, next) => {
+const isStudent = (req: Request, res: Response, next: NextFunction) => {
   if (req.user && req.user.role === 'STUDENT') {
     next();
   } else {
@@ -86,4 +103,4 @@ const isStudent = (req, res, next) => {
   }
 };
 
-module.exports = { protect, isStudent, isInstructor, isStaff, isAdmin, isSuperAdmin };
+export { protect, isStudent, isInstructor, isStaff, isAdmin, isSuperAdmin };

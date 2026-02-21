@@ -1,7 +1,6 @@
-const express = require('express');
-const router = express.Router();
-const { protect, isAdmin, isSuperAdmin } = require('../middlewares/authMiddleware');
-const {
+import express from 'express';
+import { protect, isAdmin, isSuperAdmin } from '../middlewares/authMiddleware';
+import {
   getDashboardStats,
   getAllUsers,
   toggleUserStatus,
@@ -11,7 +10,9 @@ const {
   createCategory,
   updateUserRole,
   deleteUser,
-} = require('../controllers/adminController');
+} from '../controllers/adminController';
+
+const router = express.Router();
 
 // All routes are protected + admin only
 router.use(protect, isAdmin);
@@ -26,4 +27,4 @@ router.patch('/courses/:id/toggle', toggleCoursePublished);
 router.get('/categories', getCategories);
 router.post('/categories', createCategory);
 
-module.exports = router;
+export default router;
