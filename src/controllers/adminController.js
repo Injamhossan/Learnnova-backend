@@ -73,6 +73,8 @@ const getAllUsers = asyncHandler(async (req, res) => {
   const search = req.query.search || '';
   const role = req.query.role || undefined;
 
+  const isRequesterSuperAdmin = req.user.role === 'SUPER_ADMIN';
+
   const where = {
     ...(search && {
       OR: [
@@ -81,6 +83,10 @@ const getAllUsers = asyncHandler(async (req, res) => {
       ],
     }),
     ...(role && { role }),
+    // CRITICAL: Normal Admins CANNOT see Super Admins
+    ...(!isRequesterSuperAdmin && {
+      role: { not: 'SUPER_ADMIN' }
+    })
   };
 
   const [users, total] = await Promise.all([
@@ -110,13 +116,25 @@ const getAllUsers = asyncHandler(async (req, res) => {
 // @route   PATCH /api/admin/users/:id/toggle
 // @access  Admin
 const toggleUserStatus = asyncHandler(async (req, res) => {
-  const user = await prisma.user.findUnique({ where: { id: req.params.id } });
+  const targetId = req.params.id;
+  const user = await prisma.user.findUnique({ where: { id: targetId } });
+  
   if (!user) {
     res.status(404);
     throw new Error('User not found');
   }
+
+  // PROTECTION: No one can demote/suspend a SUPER_ADMIN
+  if (user.role === 'SUPER_ADMIN') {
+    res.status(403);
+    throw new Error('Super Admin accounts are protected and cannot be suspended');
+  }
+
+  // Normal Admins cannot toggle other Admins if you want to be stricter (optional)
+  // But definitely cannot toggle SUPER_ADMIN (already checked above)
+
   const updated = await prisma.user.update({
-    where: { id: req.params.id },
+    where: { id: targetId },
     data: { isActive: !user.isActive },
     select: { id: true, fullName: true, email: true, role: true, isActive: true },
   });
@@ -197,6 +215,67 @@ const createCategory = asyncHandler(async (req, res) => {
   res.status(201).json(category);
 });
 
+// @desc    Update user role
+// @route   PATCH /api/admin/users/:id/role
+// @access  Super Admin
+const updateUserRole = asyncHandler(async (req, res) => {
+  const { role } = req.body;
+  const targetId = req.params.id;
+
+  // Only SUPER_ADMIN can change roles
+  if (req.user.role !== 'SUPER_ADMIN') {
+    res.status(403);
+    throw new Error('Only Super Admin can change user roles');
+  }
+
+  const user = await prisma.user.findUnique({ where: { id: targetId } });
+  if (!user) {
+    res.status(404);
+    throw new Error('User not found');
+  }
+
+  // PROTECTION: You CANNOT change the role of a SUPER_ADMIN (even your own)
+  if (user.role === 'SUPER_ADMIN') {
+    res.status(403);
+    throw new Error('Super Admin roles are permanent and cannot be modified');
+  }
+
+  const updated = await prisma.user.update({
+    where: { id: targetId },
+    data: { role },
+    select: { id: true, fullName: true, email: true, role: true },
+  });
+
+  res.json(updated);
+});
+
+// @desc    Delete user
+// @route   DELETE /api/admin/users/:id
+// @access  Super Admin
+const deleteUser = asyncHandler(async (req, res) => {
+  const targetId = req.params.id;
+
+  if (req.user.role !== 'SUPER_ADMIN') {
+    res.status(403);
+    throw new Error('Only Super Admin can delete users');
+  }
+
+  const user = await prisma.user.findUnique({ where: { id: targetId } });
+  if (!user) {
+    res.status(404);
+    throw new Error('User not found');
+  }
+
+  // PROTECTION: No one can delete a SUPER_ADMIN
+  if (user.role === 'SUPER_ADMIN') {
+    res.status(400);
+    throw new Error('Super Admin accounts cannot be deleted');
+  }
+
+  await prisma.user.delete({ where: { id: targetId } });
+  res.json({ message: 'User removed' });
+});
+
 module.exports = {
   getDashboardStats,
   getAllUsers,
@@ -205,4 +284,6 @@ module.exports = {
   toggleCoursePublished,
   getCategories,
   createCategory,
+  updateUserRole,
+  deleteUser,
 };

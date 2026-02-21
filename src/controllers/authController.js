@@ -62,4 +62,37 @@ const registerUser = asyncHandler(async (req, res) => {
   }
 });
 
-module.exports = { authUser, registerUser };
+// @desc    Handle social login
+const socialLogin = asyncHandler(async (req, res) => {
+  const { email, fullName, avatarUrl } = req.body;
+
+  let user = await prisma.user.findUnique({ where: { email } });
+
+  if (!user) {
+    // Create new user for social login
+    // Since it's social login, we don't have a password, so we create a random/dummy one
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(Math.random().toString(36), salt);
+
+    user = await prisma.user.create({
+      data: {
+        fullName,
+        email,
+        passwordHash,
+        avatarUrl,
+        role: 'STUDENT', // Default role for social login
+      },
+    });
+  }
+
+  res.json({
+    id: user.id,
+    fullName: user.fullName,
+    email: user.email,
+    role: user.role,
+    avatarUrl: user.avatarUrl,
+    token: generateToken(user.id),
+  });
+});
+
+module.exports = { authUser, registerUser, socialLogin };
