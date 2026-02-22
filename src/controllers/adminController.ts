@@ -41,9 +41,18 @@ const getDashboardStats = asyncHandler(async (req: Request, res: Response) => {
       },
     }),
     prisma.instructor.findMany({
-      take: 5,
-      orderBy: { averageRating: 'desc' },
-      include: { user: { select: { fullName: true, avatarUrl: true } } },
+      take: 10,
+      orderBy: { averageRating: 'desc' } as any,
+      include: {
+        user: { select: { fullName: true, email: true, avatarUrl: true } },
+        _count: { select: { courses: true } },
+        courses: {
+          select: {
+            totalEnrollments: true,
+            _count: { select: { enrollments: true } },
+          },
+        },
+      },
     }),
     // Enrollment chart data: last 10 days
     prisma.$queryRaw`
@@ -67,7 +76,10 @@ const getDashboardStats = asyncHandler(async (req: Request, res: Response) => {
     recentUsers,
     popularCourses,
     topInstructors,
-    enrollmentChart: recentEnrollments,
+    enrollmentChart: (recentEnrollments as any[]).map((r) => ({
+      date: r.date instanceof Date ? r.date.toISOString().split('T')[0] : String(r.date),
+      count: typeof r.count === 'bigint' ? Number(r.count) : Number(r.count),
+    })),
   });
 });
 
@@ -292,6 +304,52 @@ const deleteUser = asyncHandler(async (req: Request, res: Response) => {
   res.json({ message: 'User removed' });
 });
 
+// @desc    Create admin user (Super Admin only)
+// @route   POST /api/admin/users/create-admin
+// @access  Super Admin
+const createAdminUser = asyncHandler(async (req: Request, res: Response) => {
+  if (req.user.role !== 'SUPER_ADMIN') {
+    res.status(403);
+    throw new Error('Only Super Admin can create Admin accounts');
+  }
+
+  const { fullName, email, password, role = 'ADMIN' } = req.body;
+
+  if (!fullName || !email || !password) {
+    res.status(400);
+    throw new Error('fullName, email, and password are required');
+  }
+
+  const validRoles = ['ADMIN', 'SUPER_ADMIN'];
+  if (!validRoles.includes(role)) {
+    res.status(400);
+    throw new Error('Role must be ADMIN or SUPER_ADMIN');
+  }
+
+  const existing = await prisma.user.findUnique({ where: { email } });
+  if (existing) {
+    res.status(400);
+    throw new Error('A user with this email already exists');
+  }
+
+  const bcrypt = require('bcryptjs');
+  const hashedPassword = await bcrypt.hash(password, 12);
+
+  const newUser = await prisma.user.create({
+    data: {
+      fullName,
+      email,
+      passwordHash: hashedPassword,
+      role: role as any,
+      isEmailVerified: true,
+      isActive: true,
+    },
+    select: { id: true, fullName: true, email: true, role: true, createdAt: true },
+  });
+
+  res.status(201).json({ message: 'Admin account created successfully', user: newUser });
+});
+
 export {
   getDashboardStats,
   getAllUsers,
@@ -302,4 +360,5 @@ export {
   createCategory,
   updateUserRole,
   deleteUser,
+  createAdminUser,
 };

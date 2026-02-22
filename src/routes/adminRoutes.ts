@@ -10,6 +10,7 @@ import {
   createCategory,
   updateUserRole,
   deleteUser,
+  createAdminUser,
 } from '../controllers/adminController';
 
 const router = express.Router();
@@ -20,6 +21,7 @@ router.use(protect, isAdmin);
 router.get('/stats', getDashboardStats);
 router.get('/users', getAllUsers);
 router.patch('/users/:id/toggle', toggleUserStatus);
+router.post('/users/create-admin', isSuperAdmin, createAdminUser);
 router.patch('/users/:id/role', isSuperAdmin, updateUserRole);
 router.delete('/users/:id', isSuperAdmin, deleteUser);
 router.get('/courses', getAllCourses);
