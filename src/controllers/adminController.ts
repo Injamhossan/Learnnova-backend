@@ -6,6 +6,8 @@ import { prisma } from '../config/db';
 // @route   GET /api/admin/stats
 // @access  Admin
 const getDashboardStats = asyncHandler(async (req: Request, res: Response) => {
+  const days = Math.min(Math.max(parseInt(req.query.days as string) || 10, 7), 90);
+
   const [
     totalUsers,
     totalInstructors,
@@ -17,6 +19,9 @@ const getDashboardStats = asyncHandler(async (req: Request, res: Response) => {
     popularCourses,
     topInstructors,
     recentEnrollments,
+    prevEnrollments,
+    prevUsers,
+    prevCourses,
   ] = await Promise.all([
     prisma.user.count(),
     prisma.user.count({ where: { role: 'INSTRUCTOR' as any } }),
@@ -54,15 +59,52 @@ const getDashboardStats = asyncHandler(async (req: Request, res: Response) => {
         },
       },
     }),
-    // Enrollment chart data: last 10 days
-    prisma.$queryRaw`
+    // Chart: current period
+    prisma.$queryRawUnsafe(`
       SELECT DATE(enrolled_at) as date, COUNT(*)::int as count
       FROM enrollments
-      WHERE enrolled_at >= NOW() - INTERVAL '10 days'
+      WHERE enrolled_at >= NOW() - INTERVAL '${days} days'
       GROUP BY DATE(enrolled_at)
       ORDER BY date ASC
-    `,
+    `),
+    // Previous period enrollments count (for % change)
+    prisma.enrollment.count({
+      where: {
+        enrolledAt: {
+          gte: new Date(Date.now() - days * 2 * 86400000),
+          lt: new Date(Date.now() - days * 86400000),
+        },
+      } as any,
+    }),
+    // Previous period users (for % change)
+    prisma.user.count({
+      where: {
+        createdAt: {
+          gte: new Date(Date.now() - days * 2 * 86400000),
+          lt: new Date(Date.now() - days * 86400000),
+        },
+      } as any,
+    }),
+    // Previous period courses (for % change)
+    prisma.course.count({
+      where: {
+        createdAt: {
+          gte: new Date(Date.now() - days * 2 * 86400000),
+          lt: new Date(Date.now() - days * 86400000),
+        },
+      } as any,
+    }),
   ]);
+
+  // Compute current-period enrollments sum from chart for change %
+  const currentPeriodEnrollments = (recentEnrollments as any[]).reduce(
+    (sum, r) => sum + (typeof r.count === 'bigint' ? Number(r.count) : Number(r.count)),
+    0
+  );
+  const pctChange = (curr: number, prev: number) => {
+    if (prev === 0) return curr > 0 ? 100 : 0;
+    return Math.round(((curr - prev) / prev) * 100);
+  };
 
   res.json({
     stats: {
@@ -73,6 +115,11 @@ const getDashboardStats = asyncHandler(async (req: Request, res: Response) => {
       totalCourses,
       totalRevenue: (totalRevenue._sum as any).amount || 0,
     },
+    changes: {
+      enrollments: pctChange(currentPeriodEnrollments, prevEnrollments),
+      users: pctChange(totalUsers, totalUsers - prevUsers),
+      courses: pctChange(totalCourses, totalCourses - prevCourses),
+    },
     recentUsers,
     popularCourses,
     topInstructors,
@@ -80,6 +127,7 @@ const getDashboardStats = asyncHandler(async (req: Request, res: Response) => {
       date: r.date instanceof Date ? r.date.toISOString().split('T')[0] : String(r.date),
       count: typeof r.count === 'bigint' ? Number(r.count) : Number(r.count),
     })),
+    days,
   });
 });
 
@@ -102,11 +150,20 @@ const getAllUsers = asyncHandler(async (req: Request, res: Response) => {
         { email: { contains: search, mode: 'insensitive' } },
       ],
     }),
-    ...(role && { role }),
-    ...(!isRequesterSuperAdmin && {
-      role: { not: 'SUPER_ADMIN' }
-    })
   };
+
+  if (role) {
+    // If a specific role is requested, use it. 
+    // Security check: normal admins cannot request SUPER_ADMIN
+    if (!isRequesterSuperAdmin && role === 'SUPER_ADMIN') {
+      where.role = 'NONE'; // Should return nothing or we could throw 403
+    } else {
+      where.role = role;
+    }
+  } else if (!isRequesterSuperAdmin) {
+    // If no role requested, show everything except SUPER_ADMIN
+    where.role = { not: 'SUPER_ADMIN' };
+  }
 
   const [users, total] = await Promise.all([
     prisma.user.findMany({
