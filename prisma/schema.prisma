@@ -16,6 +16,18 @@ enum UserRole {
   SUPER_ADMIN
 }
 
+enum CourseStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  COMPLETED
+  DROPPED
+}
+
 enum CourseLevel {
   BEGINNER
   INTERMEDIATE
@@ -134,7 +146,7 @@ model Course {
   durationMinutes   Int?          @map("duration_minutes")
   price             Float         @default(0)
   discountPrice     Float?        @map("discount_price")
-  isPublished       Boolean       @default(false) @map("is_published")
+  status            CourseStatus  @default(DRAFT)
   isFeatured        Boolean       @default(false) @map("is_featured")
   totalEnrollments  Int           @default(0) @map("total_enrollments")
   averageRating     Float         @default(0) @map("average_rating")
@@ -145,6 +157,7 @@ model Course {
   createdAt         DateTime      @default(now()) @map("created_at")
   updatedAt         DateTime      @updatedAt @map("updated_at")
   publishedAt       DateTime?     @map("published_at")
+  deletedAt         DateTime?     @map("deleted_at")
 
   // Relations
   instructor        Instructor    @relation(fields: [instructorId], references: [id], onDelete: Cascade)
@@ -160,7 +173,8 @@ model Course {
   @@index([instructorId])
   @@index([categoryId])
   @@index([slug])
-  @@index([isPublished])
+  @@index([status])
+  @@index([deletedAt])
   @@map("courses")
 }
 
@@ -213,7 +227,7 @@ model Enrollment {
   userId             String    @map("user_id")
   courseId           String    @map("course_id")
   progressPercentage Int       @default(0) @map("progress_percentage")
-  isCompleted        Boolean   @default(false) @map("is_completed")
+  status             EnrollmentStatus @default(ACTIVE)
   completedAt        DateTime? @map("completed_at")
   enrolledAt         DateTime  @default(now()) @map("enrolled_at")
   lastAccessedAt     DateTime? @map("last_accessed_at")

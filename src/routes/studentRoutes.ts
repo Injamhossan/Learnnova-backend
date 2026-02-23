@@ -7,6 +7,8 @@ import {
   getWishlist,
   addToWishlist,
   removeFromWishlist,
+  updateLessonProgress,
+  getDashboardStats,
 } from '../controllers/studentController';
 import { protect, isStudent } from '../middlewares/authMiddleware';
 
@@ -14,6 +16,8 @@ const router = express.Router();
 
 // All student routes require auth + student role
 router.use(protect, isStudent);
+
+router.get('/stats', getDashboardStats);
 
 // Enrollments
 router.post('/enroll/:courseId',    enrollInCourse);
@@ -27,5 +31,8 @@ router.get('/certificates',         getMyCertificates);
 router.get('/wishlist',             getWishlist);
 router.post('/wishlist/:courseId',  addToWishlist);
 router.delete('/wishlist/:courseId', removeFromWishlist);
+
+// Progress Tracking
+router.patch('/progress/:lessonId', updateLessonProgress);
 
 export default router;

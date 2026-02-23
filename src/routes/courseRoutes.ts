@@ -5,7 +5,8 @@ import {
   createCourse, 
   updateCourse,
   deleteCourse,
-  getInstructorStats
+  getInstructorStats,
+  getCategories
 } from '../controllers/courseController';
 import {
   addSection,
@@ -21,6 +22,7 @@ const router = express.Router();
 
 // Public routes
 router.get('/', getCourses);
+router.get('/categories', getCategories);
 
 // Authenticated routes
 router.use(protect);

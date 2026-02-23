@@ -7,16 +7,45 @@ import { prisma } from '../config/db';
 // @route   GET /api/courses
 // @access  Public
 const getCourses = asyncHandler(async (req: Request, res: Response) => {
+  const { search, category, level, sort } = req.query;
+
+  const where: any = { 
+    status: 'PUBLISHED',
+    deletedAt: null,
+    ...(search && { title: { contains: search as string, mode: 'insensitive' } }),
+    ...(category && { category: { slug: category } }),
+    ...(level && { level }),
+  };
+
+  let orderBy: any = { createdAt: 'desc' };
+  if (sort === 'newest') orderBy = { createdAt: 'desc' };
+  if (sort === 'oldest') orderBy = { createdAt: 'asc' };
+  if (sort === 'price-low') orderBy = { price: 'asc' };
+  if (sort === 'price-high') orderBy = { price: 'desc' };
+  if (sort === 'rating') orderBy = { averageRating: 'desc' };
+
+  const limit = Math.min(parseInt(req.query.limit as string) || 12, 50);
+  const cursor = req.query.cursor as string | undefined;
+
   const courses = await prisma.course.findMany({
-    where: { isPublished: true },
+    where,
+    take: limit,
+    ...(cursor && { skip: 1, cursor: { id: cursor } }),
     include: {
       instructor: {
         include: { user: { select: { fullName: true, avatarUrl: true } } }
       },
       category: { select: { name: true, slug: true } }
     },
+    orderBy,
   });
-  res.json(courses);
+
+  const nextCursor = courses.length === limit ? courses[courses.length - 1].id : null;
+
+  res.json({
+    courses,
+    nextCursor,
+  });
 });
 
 // @desc    Get instructor's own courses
@@ -70,7 +99,7 @@ const createCourse = asyncHandler(async (req: Request, res: Response) => {
 // @route   PUT /api/courses/:id
 // @access  Private/Instructor
 const updateCourse = asyncHandler(async (req: Request, res: Response) => {
-  const { title, description, categoryId, price, level, thumbnailUrl, isPublished, whatYouWillLearn, requirements } = req.body;
+  const { title, description, categoryId, price, level, thumbnailUrl, status, whatYouWillLearn, requirements } = req.body;
   const courseId = req.params.id as string;
   
   const course = await prisma.course.findUnique({
@@ -95,7 +124,7 @@ const updateCourse = asyncHandler(async (req: Request, res: Response) => {
     price: price !== undefined ? parseFloat(price) : undefined,
     level,
     thumbnailUrl,
-    isPublished,
+    status,
     whatYouWillLearn,
     requirements
   };
@@ -104,7 +133,7 @@ const updateCourse = asyncHandler(async (req: Request, res: Response) => {
     data.slug = slugify(title, { lower: true, strict: true }) + '-' + Math.random().toString(36).substring(2, 7);
   }
 
-  if (isPublished === true && !course.isPublished) {
+  if (status === 'PUBLISHED' && course.status !== 'PUBLISHED') {
     data.publishedAt = new Date();
   }
 
@@ -136,11 +165,13 @@ const deleteCourse = asyncHandler(async (req: Request, res: Response) => {
     throw new Error('Not authorized to delete this course');
   }
 
-  await prisma.course.delete({
-    where: { id: courseId }
+  // Perform Soft Delete
+  await prisma.course.update({
+    where: { id: courseId },
+    data: { deletedAt: new Date(), status: 'ARCHIVED' }
   });
 
-  res.json({ message: 'Course deleted successfully' });
+  res.json({ message: 'Course removed successfully (soft-deleted)' });
 });
 
 // @desc    Get Instructor Dashboard Stats
@@ -177,11 +208,22 @@ const getInstructorStats = asyncHandler(async (req: Request, res: Response) => {
   });
 });
 
+// @desc    Get all categories for selection
+// @route   GET /api/courses/categories
+// @access  Public
+const getCategories = asyncHandler(async (req: Request, res: Response) => {
+  const categories = await prisma.category.findMany({
+    orderBy: { name: 'asc' } as any,
+  });
+  res.json(categories);
+});
+
 export {
   getCourses,
   getMyCourses,
   createCourse,
   updateCourse,
   deleteCourse,
-  getInstructorStats
+  getInstructorStats,
+  getCategories
 };

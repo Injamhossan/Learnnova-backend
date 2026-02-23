@@ -11,6 +11,10 @@ import courseRoutes from './src/routes/courseRoutes';
 import studentRoutes from './src/routes/studentRoutes';
 import adminRoutes from './src/routes/adminRoutes';
 
+import morgan from 'morgan';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
+
 // Load environment variables
 dotenv.config();
 
@@ -20,7 +24,17 @@ connectDB();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Rate Limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: { message: 'Too many requests from this IP, please try again after 15 minutes' },
+});
+
 // Middleware
+app.use(helmet()); // Security headers
+app.use(limiter); // Applied to all requests
+app.use(morgan('dev')); // Logging
 app.use(cors());
 app.use(express.json());
 

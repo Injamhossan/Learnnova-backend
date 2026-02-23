@@ -8,9 +8,10 @@ import {
   toggleCoursePublished,
   getCategories,
   createCategory,
-  updateUserRole,
   deleteUser,
   createAdminUser,
+  updateUserRole,
+  getAnalytics,
 } from '../controllers/adminController';
 
 const router = express.Router();
@@ -28,5 +29,6 @@ router.get('/courses', getAllCourses);
 router.patch('/courses/:id/toggle', toggleCoursePublished);
 router.get('/categories', getCategories);
 router.post('/categories', createCategory);
+router.get('/analytics', getAnalytics);
 
 export default router;

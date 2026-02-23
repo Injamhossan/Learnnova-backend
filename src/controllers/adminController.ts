@@ -24,13 +24,13 @@ const getDashboardStats = asyncHandler(async (req: Request, res: Response) => {
     prevCourses,
   ] = await Promise.all([
     prisma.user.count(),
-    prisma.user.count({ where: { role: 'INSTRUCTOR' as any } }),
-    prisma.user.count({ where: { role: 'STUDENT' as any } }),
+    prisma.user.count({ where: { role: 'INSTRUCTOR' } }),
+    prisma.user.count({ where: { role: 'STUDENT' } }),
     prisma.enrollment.count(),
-    prisma.course.count(),
+    prisma.course.count({ where: { deletedAt: null } }),
     prisma.payment.aggregate({
       _sum: { amount: true },
-      where: { status: 'COMPLETED' as any },
+      where: { status: 'COMPLETED' },
     }),
     prisma.user.findMany({
       take: 5,
@@ -223,9 +223,10 @@ const getAllCourses = asyncHandler(async (req: Request, res: Response) => {
   const skip = (page - 1) * limit;
   const search = (req.query.search as string) || '';
 
-  const where: any = search
-    ? { title: { contains: search, mode: 'insensitive' } }
-    : {};
+  const where: any = {
+    deletedAt: null,
+    ...(search && { title: { contains: search, mode: 'insensitive' } }),
+  };
 
   const [courses, total] = await Promise.all([
     prisma.course.findMany({
@@ -245,7 +246,7 @@ const getAllCourses = asyncHandler(async (req: Request, res: Response) => {
   res.json({ courses, total, page, pages: Math.ceil(total / limit) });
 });
 
-// @desc    Toggle course published
+// @desc    Toggle course published (Draft <-> Published)
 // @route   PATCH /api/admin/courses/:id/toggle
 // @access  Admin
 const toggleCoursePublished = asyncHandler(async (req: Request, res: Response) => {
@@ -255,13 +256,16 @@ const toggleCoursePublished = asyncHandler(async (req: Request, res: Response) =
     res.status(404);
     throw new Error('Course not found');
   }
+
+  const newStatus = course.status === 'PUBLISHED' ? 'DRAFT' : 'PUBLISHED';
+
   const updated = await prisma.course.update({
     where: { id: courseId },
     data: {
-      isPublished: !course.isPublished,
-      publishedAt: !course.isPublished ? new Date() : null,
+      status: newStatus as any,
+      publishedAt: newStatus === 'PUBLISHED' ? new Date() : course.publishedAt,
     },
-    select: { id: true, title: true, isPublished: true },
+    select: { id: true, title: true, status: true } as any,
   });
   res.json(updated);
 });
@@ -407,6 +411,96 @@ const createAdminUser = asyncHandler(async (req: Request, res: Response) => {
   res.status(201).json({ message: 'Admin account created successfully', user: newUser });
 });
 
+// @desc    Get detailed analytics
+// @route   GET /api/admin/analytics
+// @access  Admin
+const getAnalytics = asyncHandler(async (req: Request, res: Response) => {
+  const [
+    revenuePerCourse,
+    instructorPerformance,
+    categoryDistribution,
+  ] = await Promise.all([
+    // 1. Revenue per course
+    prisma.payment.groupBy({
+      by: ['courseId'],
+      _sum: { amount: true },
+      where: { status: 'COMPLETED' },
+    }),
+
+    // 2. Instructor performance
+    prisma.instructor.findMany({
+      include: {
+        user: { select: { fullName: true } },
+        courses: {
+          include: {
+            _count: {
+              select: {
+                enrollments: { where: { status: 'COMPLETED' } }
+              }
+            },
+            enrollments: { select: { id: true } }
+          }
+        }
+      }
+    }),
+
+    // 3. Category distribution
+    prisma.category.findMany({
+      select: {
+        name: true,
+        _count: { select: { courses: true } }
+      }
+    })
+  ]);
+
+  // Transform instructor performance to calculate rates
+  // Note: For a more accurate "Completion Rate per Instructor", 
+  // we'd need to count enrollments with status 'COMPLETED' across all their courses.
+  const instructors = await prisma.instructor.findMany({
+    include: {
+      user: { select: { fullName: true } },
+      courses: {
+        include: {
+          _count: {
+            select: {
+              enrollments: { where: { status: 'COMPLETED' as any } }
+            }
+          },
+          enrollments: { select: { id: true } }
+        }
+      }
+    }
+  });
+
+  const instructorStats = instructors.map(inst => {
+    let totalEnrolled = 0;
+    let totalCompleted = 0;
+    inst.courses.forEach(c => {
+      totalEnrolled += c.enrollments.length;
+      totalCompleted += c._count.enrollments;
+    });
+
+    return {
+      name: inst.user.fullName,
+      totalStudents: totalEnrolled,
+      totalCompletions: totalCompleted,
+      completionRate: totalEnrolled > 0 ? Math.round((totalCompleted / totalEnrolled) * 100) : 0
+    };
+  });
+
+  res.json({
+    revenuePerCourse: revenuePerCourse.map(r => ({
+      courseId: r.courseId,
+      totalRevenue: r._sum.amount || 0
+    })),
+    instructorPerformance: instructorStats,
+    categoryDistribution: categoryDistribution.map(c => ({
+      name: c.name,
+      courseCount: c._count.courses
+    }))
+  });
+});
+
 export {
   getDashboardStats,
   getAllUsers,
@@ -418,4 +512,5 @@ export {
   updateUserRole,
   deleteUser,
   createAdminUser,
+  getAnalytics,
 };

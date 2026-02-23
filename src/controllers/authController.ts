@@ -78,10 +78,11 @@ const socialLogin = asyncHandler(async (req: Request, res: Response) => {
   const { email, fullName, avatarUrl } = req.body;
 
   let user = await prisma.user.findUnique({ where: { email } });
+  let isNewUser = false;
 
   if (!user) {
+    isNewUser = true;
     // Create new user for social login
-    // Since it's social login, we don't have a password, so we create a random/dummy one
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(Math.random().toString(36), salt);
 
@@ -91,8 +92,14 @@ const socialLogin = asyncHandler(async (req: Request, res: Response) => {
         email,
         passwordHash,
         avatarUrl,
-        role: 'STUDENT', // Default role for social login
+        role: 'STUDENT', // Default, but can be changed later
       },
+    });
+  } else if (!user.avatarUrl && avatarUrl) {
+    // Sync avatar if missing
+    user = await prisma.user.update({
+      where: { id: user.id },
+      data: { avatarUrl }
     });
   }
 
@@ -103,6 +110,7 @@ const socialLogin = asyncHandler(async (req: Request, res: Response) => {
     role: user.role,
     avatarUrl: user.avatarUrl,
     token: generateToken(user.id),
+    needsRole: isNewUser, // Flag to tell frontend to show role selection
   });
 });
 

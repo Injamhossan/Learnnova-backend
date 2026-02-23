@@ -100,4 +100,34 @@ const changePassword = asyncHandler(async (req: Request, res: Response) => {
   res.json({ message: 'Password changed successfully' });
 });
 
-export { getUsers, getMyProfile, updateMyProfile, updateInstructorProfile, changePassword };
+// @desc  Set initial role (for social login users)
+// @route POST /api/users/init-role
+const setInitialRole = asyncHandler(async (req: Request, res: Response) => {
+  const { role } = req.body;
+
+  if (!['STUDENT', 'INSTRUCTOR'].includes(role)) {
+    res.status(400); throw new Error('Invalid role selected');
+  }
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const user = await tx.user.update({
+      where: { id: req.user.id },
+      data: { role },
+      select: { id: true, fullName: true, email: true, role: true },
+    });
+
+    if (role === 'INSTRUCTOR') {
+      await tx.instructor.upsert({
+        where: { userId: user.id },
+        update: {},
+        create: { userId: user.id }
+      });
+    }
+
+    return user;
+  });
+
+  res.json(updated);
+});
+
+export { getUsers, getMyProfile, updateMyProfile, updateInstructorProfile, changePassword, setInitialRole };
