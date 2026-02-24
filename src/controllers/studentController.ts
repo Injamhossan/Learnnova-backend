@@ -17,7 +17,16 @@ const enrollInCourse = asyncHandler(async (req: Request, res: Response) => {
 
   const enrollment = await prisma.$transaction(async (tx) => {
     const existing = await tx.enrollment.findUnique({ where: { userId_courseId: { userId, courseId } } });
-    if (existing) throw new Error('Already enrolled in this course');
+    if (existing) {
+      if (existing.status === 'DROPPED') {
+        // Re-active if dropped
+        return await tx.enrollment.update({
+          where: { id: existing.id },
+          data: { status: 'ACTIVE', enrolledAt: new Date() }
+        });
+      }
+      throw new Error('Already enrolled in this course');
+    }
 
     const newEnrollment = await tx.enrollment.create({ data: { userId, courseId, status: 'ACTIVE' } });
     await tx.course.update({ where: { id: courseId }, data: { totalEnrollments: { increment: 1 } } });
@@ -26,6 +35,28 @@ const enrollInCourse = asyncHandler(async (req: Request, res: Response) => {
   });
 
   res.status(201).json(enrollment);
+});
+
+// ── Drop a course
+const dropCourse = asyncHandler(async (req: Request, res: Response) => {
+  const courseId = req.params['courseId'] as string;
+  const userId = req.user.id as string;
+
+  const enrollment = await prisma.enrollment.findUnique({
+    where: { userId_courseId: { userId, courseId } }
+  });
+
+  if (!enrollment) {
+    res.status(404);
+    throw new Error('Enrollment not found');
+  }
+
+  const updatedEnrollment = await prisma.enrollment.update({
+    where: { id: enrollment.id },
+    data: { status: 'DROPPED' }
+  });
+
+  res.json({ message: 'Course dropped', enrollment: updatedEnrollment });
 });
 
 // ── Get my enrollments (rich) ────────────────────────────────────────────────
@@ -223,6 +254,7 @@ const getDashboardStats = asyncHandler(async (req: Request, res: Response) => {
 
 export {
   enrollInCourse,
+  dropCourse,
   getMyEnrolledCourses,
   getMyEnrollments,
   getMyCertificates,

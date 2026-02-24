@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getInstructorStats = exports.deleteCourse = exports.updateCourse = exports.createCourse = exports.getMyCourses = exports.getCourses = void 0;
+exports.getCategories = exports.getInstructorStats = exports.deleteCourse = exports.updateCourse = exports.createCourse = exports.getMyCourses = exports.getCourseDetail = exports.getCourses = void 0;
 const express_async_handler_1 = __importDefault(require("express-async-handler"));
 const slugify_1 = __importDefault(require("slugify"));
 const db_1 = require("../config/db");
@@ -11,16 +11,44 @@ const db_1 = require("../config/db");
 // @route   GET /api/courses
 // @access  Public
 const getCourses = (0, express_async_handler_1.default)(async (req, res) => {
+    const { search, category, level, sort } = req.query;
+    const where = {
+        status: 'PUBLISHED',
+        deletedAt: null,
+        ...(search && { title: { contains: search, mode: 'insensitive' } }),
+        ...(category && { category: { slug: category } }),
+        ...(level && { level }),
+    };
+    let orderBy = { createdAt: 'desc' };
+    if (sort === 'newest')
+        orderBy = { createdAt: 'desc' };
+    if (sort === 'oldest')
+        orderBy = { createdAt: 'asc' };
+    if (sort === 'price-low')
+        orderBy = { price: 'asc' };
+    if (sort === 'price-high')
+        orderBy = { price: 'desc' };
+    if (sort === 'rating')
+        orderBy = { averageRating: 'desc' };
+    const limit = Math.min(parseInt(req.query.limit) || 12, 50);
+    const cursor = req.query.cursor;
     const courses = await db_1.prisma.course.findMany({
-        where: { isPublished: true },
+        where,
+        take: limit,
+        ...(cursor && { skip: 1, cursor: { id: cursor } }),
         include: {
             instructor: {
                 include: { user: { select: { fullName: true, avatarUrl: true } } }
             },
             category: { select: { name: true, slug: true } }
         },
+        orderBy,
     });
-    res.json(courses);
+    const nextCursor = courses.length === limit ? courses[courses.length - 1].id : null;
+    res.json({
+        courses,
+        nextCursor,
+    });
 });
 exports.getCourses = getCourses;
 // @desc    Get instructor's own courses
@@ -69,7 +97,7 @@ exports.createCourse = createCourse;
 // @route   PUT /api/courses/:id
 // @access  Private/Instructor
 const updateCourse = (0, express_async_handler_1.default)(async (req, res) => {
-    const { title, description, categoryId, price, level, thumbnailUrl, isPublished, whatYouWillLearn, requirements } = req.body;
+    const { title, description, categoryId, price, level, thumbnailUrl, status, whatYouWillLearn, requirements } = req.body;
     const courseId = req.params.id;
     const course = await db_1.prisma.course.findUnique({
         where: { id: courseId }
@@ -90,14 +118,14 @@ const updateCourse = (0, express_async_handler_1.default)(async (req, res) => {
         price: price !== undefined ? parseFloat(price) : undefined,
         level,
         thumbnailUrl,
-        isPublished,
+        status,
         whatYouWillLearn,
         requirements
     };
     if (title && title !== course.title) {
         data.slug = (0, slugify_1.default)(title, { lower: true, strict: true }) + '-' + Math.random().toString(36).substring(2, 7);
     }
-    if (isPublished === true && !course.isPublished) {
+    if (status === 'PUBLISHED' && course.status !== 'PUBLISHED') {
         data.publishedAt = new Date();
     }
     const updatedCourse = await db_1.prisma.course.update({
@@ -124,10 +152,12 @@ const deleteCourse = (0, express_async_handler_1.default)(async (req, res) => {
         res.status(403);
         throw new Error('Not authorized to delete this course');
     }
-    await db_1.prisma.course.delete({
-        where: { id: courseId }
+    // Perform Soft Delete
+    await db_1.prisma.course.update({
+        where: { id: courseId },
+        data: { deletedAt: new Date(), status: 'ARCHIVED' }
     });
-    res.json({ message: 'Course deleted successfully' });
+    res.json({ message: 'Course removed successfully (soft-deleted)' });
 });
 exports.deleteCourse = deleteCourse;
 // @desc    Get Instructor Dashboard Stats
@@ -161,3 +191,56 @@ const getInstructorStats = (0, express_async_handler_1.default)(async (req, res)
     });
 });
 exports.getInstructorStats = getInstructorStats;
+// @desc    Get course details (public)
+// @route   GET /api/courses/:idOrSlug
+// @access  Public
+const getCourseDetail = (0, express_async_handler_1.default)(async (req, res) => {
+    const idOrSlug = req.params.idOrSlug;
+    const course = await db_1.prisma.course.findFirst({
+        where: {
+            OR: [{ id: idOrSlug }, { slug: idOrSlug }],
+            status: 'PUBLISHED',
+            deletedAt: null
+        },
+        include: {
+            instructor: {
+                include: { user: { select: { fullName: true, avatarUrl: true, bio: true } } }
+            },
+            category: { select: { name: true, slug: true } },
+            sections: {
+                orderBy: { orderIndex: 'asc' },
+                include: {
+                    lessons: {
+                        orderBy: { orderIndex: 'asc' },
+                        select: {
+                            id: true,
+                            title: true,
+                            description: true,
+                            isPreview: true,
+                            videoDurationSeconds: true,
+                            orderIndex: true,
+                            videoUrl: true, // we'll filter this in frontend or just keep it since it's public for preview
+                        }
+                    }
+                }
+            },
+            _count: { select: { enrollments: true, reviews: true } }
+        }
+    });
+    if (!course) {
+        res.status(404);
+        throw new Error('Course not found');
+    }
+    res.json(course);
+});
+exports.getCourseDetail = getCourseDetail;
+// @desc    Get all categories for selection
+// @route   GET /api/courses/categories
+// @access  Public
+const getCategories = (0, express_async_handler_1.default)(async (req, res) => {
+    const categories = await db_1.prisma.category.findMany({
+        orderBy: { name: 'asc' },
+    });
+    res.json(categories);
+});
+exports.getCategories = getCategories;

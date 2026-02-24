@@ -1,6 +1,7 @@
 import express from 'express';
 import {
   enrollInCourse,
+  dropCourse,
   getMyEnrolledCourses,
   getMyEnrollments,
   getMyCertificates,
@@ -21,6 +22,7 @@ router.get('/stats', getDashboardStats);
 
 // Enrollments
 router.post('/enroll/:courseId',    enrollInCourse);
+router.delete('/enroll/:courseId',  dropCourse);
 router.get('/my-courses',           getMyEnrolledCourses); // backward-compat
 router.get('/enrollments',          getMyEnrollments);
 

@@ -208,6 +208,52 @@ const getInstructorStats = asyncHandler(async (req: Request, res: Response) => {
   });
 });
 
+// @desc    Get course details (public)
+// @route   GET /api/courses/:idOrSlug
+// @access  Public
+const getCourseDetail = asyncHandler(async (req: Request, res: Response) => {
+  const idOrSlug = req.params.idOrSlug as string;
+
+  const course = await prisma.course.findFirst({
+    where: {
+      OR: [ { id: idOrSlug }, { slug: idOrSlug } ],
+      status: 'PUBLISHED',
+      deletedAt: null
+    },
+    include: {
+      instructor: {
+        include: { user: { select: { fullName: true, avatarUrl: true, bio: true } } }
+      },
+      category: { select: { name: true, slug: true } },
+      sections: {
+        orderBy: { orderIndex: 'asc' },
+        include: {
+          lessons: {
+            orderBy: { orderIndex: 'asc' },
+            select: {
+              id: true,
+              title: true,
+              description: true,
+              isPreview: true,
+              videoDurationSeconds: true,
+              orderIndex: true,
+              videoUrl: true, // we'll filter this in frontend or just keep it since it's public for preview
+            }
+          }
+        }
+      },
+      _count: { select: { enrollments: true, reviews: true } }
+    }
+  });
+
+  if (!course) {
+    res.status(404);
+    throw new Error('Course not found');
+  }
+
+  res.json(course);
+});
+
 // @desc    Get all categories for selection
 // @route   GET /api/courses/categories
 // @access  Public
@@ -220,6 +266,7 @@ const getCategories = asyncHandler(async (req: Request, res: Response) => {
 
 export {
   getCourses,
+  getCourseDetail,
   getMyCourses,
   createCourse,
   updateCourse,

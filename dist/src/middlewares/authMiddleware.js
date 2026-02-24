@@ -34,12 +34,14 @@ const protect = (0, express_async_handler_1.default)(async (req, res, next) => {
 exports.protect = protect;
 const isInstructor = (0, express_async_handler_1.default)(async (req, res, next) => {
     if (req.user && req.user.role === 'INSTRUCTOR') {
-        const instructor = await db_1.prisma.instructor.findUnique({
+        let instructor = await db_1.prisma.instructor.findUnique({
             where: { userId: req.user.id }
         });
+        // Auto-create profile if missing but user has the role
         if (!instructor) {
-            res.status(403);
-            throw new Error('Instructor profile not found');
+            instructor = await db_1.prisma.instructor.create({
+                data: { userId: req.user.id }
+            });
         }
         req.instructor = instructor;
         next();
@@ -50,15 +52,27 @@ const isInstructor = (0, express_async_handler_1.default)(async (req, res, next)
     }
 });
 exports.isInstructor = isInstructor;
-const isStaff = (req, res, next) => {
+const isStaff = (0, express_async_handler_1.default)(async (req, res, next) => {
     if (req.user && (req.user.role === 'INSTRUCTOR' || req.user.role === 'ADMIN' || req.user.role === 'SUPER_ADMIN')) {
+        // If instructor, make sure req.instructor is populated
+        if (req.user.role === 'INSTRUCTOR' && !req.instructor) {
+            let instructor = await db_1.prisma.instructor.findUnique({
+                where: { userId: req.user.id }
+            });
+            if (!instructor) {
+                instructor = await db_1.prisma.instructor.create({
+                    data: { userId: req.user.id }
+                });
+            }
+            req.instructor = instructor;
+        }
         next();
     }
     else {
         res.status(403);
         throw new Error('Access denied. Staff role required.');
     }
-};
+});
 exports.isStaff = isStaff;
 const isAdmin = (req, res, next) => {
     if (req.user && (req.user.role === 'ADMIN' || req.user.role === 'SUPER_ADMIN')) {

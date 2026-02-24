@@ -1,6 +1,7 @@
 import express from 'express';
 import { 
-  getCourses, 
+  getCourses,
+  getCourseDetail,
   getMyCourses,
   createCourse, 
   updateCourse,
@@ -23,6 +24,7 @@ const router = express.Router();
 // Public routes
 router.get('/', getCourses);
 router.get('/categories', getCategories);
+router.get('/:idOrSlug', getCourseDetail);
 
 // Authenticated routes
 router.use(protect);

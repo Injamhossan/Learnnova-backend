@@ -10,6 +10,8 @@ const authMiddleware_1 = require("../middlewares/authMiddleware");
 const router = express_1.default.Router();
 // Public routes
 router.get('/', courseController_1.getCourses);
+router.get('/categories', courseController_1.getCategories);
+router.get('/:idOrSlug', courseController_1.getCourseDetail);
 // Authenticated routes
 router.use(authMiddleware_1.protect);
 // Only instructors can create and see their dashboard

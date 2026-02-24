@@ -14,13 +14,27 @@ const userRoutes_1 = __importDefault(require("./src/routes/userRoutes"));
 const courseRoutes_1 = __importDefault(require("./src/routes/courseRoutes"));
 const studentRoutes_1 = __importDefault(require("./src/routes/studentRoutes"));
 const adminRoutes_1 = __importDefault(require("./src/routes/adminRoutes"));
+const morgan_1 = __importDefault(require("morgan"));
+const helmet_1 = __importDefault(require("helmet"));
+const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 // Load environment variables
 dotenv_1.default.config();
 // Connect to Database
 (0, db_1.connectDB)();
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 5000;
+// Rate Limiting
+const limiter = (0, express_rate_limit_1.default)({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: process.env.NODE_ENV === 'development' ? 5000 : 100, // much higher limit in dev
+    message: { message: 'Too many requests from this IP, please try again after 15 minutes' },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
 // Middleware
+app.use((0, helmet_1.default)()); // Security headers
+app.use(limiter); // Applied to all requests
+app.use((0, morgan_1.default)('dev')); // Logging
 app.use((0, cors_1.default)());
 app.use(express_1.default.json());
 // Routes

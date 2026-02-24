@@ -3,19 +3,20 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deleteUser = exports.updateUserRole = exports.createCategory = exports.getCategories = exports.toggleCoursePublished = exports.getAllCourses = exports.toggleUserStatus = exports.getAllUsers = exports.getDashboardStats = void 0;
+exports.getAnalytics = exports.createAdminUser = exports.deleteUser = exports.updateUserRole = exports.createCategory = exports.getCategories = exports.toggleCoursePublished = exports.getAllCourses = exports.toggleUserStatus = exports.getAllUsers = exports.getDashboardStats = void 0;
 const express_async_handler_1 = __importDefault(require("express-async-handler"));
 const db_1 = require("../config/db");
 // @desc    Get dashboard stats
 // @route   GET /api/admin/stats
 // @access  Admin
 const getDashboardStats = (0, express_async_handler_1.default)(async (req, res) => {
-    const [totalUsers, totalInstructors, activeStudents, totalEnrollments, totalCourses, totalRevenue, recentUsers, popularCourses, topInstructors, recentEnrollments,] = await Promise.all([
+    const days = Math.min(Math.max(parseInt(req.query.days) || 10, 7), 90);
+    const [totalUsers, totalInstructors, activeStudents, totalEnrollments, totalCourses, totalRevenue, recentUsers, popularCourses, topInstructors, recentEnrollments, prevEnrollments, prevUsers, prevCourses,] = await Promise.all([
         db_1.prisma.user.count(),
         db_1.prisma.user.count({ where: { role: 'INSTRUCTOR' } }),
         db_1.prisma.user.count({ where: { role: 'STUDENT' } }),
         db_1.prisma.enrollment.count(),
-        db_1.prisma.course.count(),
+        db_1.prisma.course.count({ where: { deletedAt: null } }),
         db_1.prisma.payment.aggregate({
             _sum: { amount: true },
             where: { status: 'COMPLETED' },
@@ -34,19 +35,62 @@ const getDashboardStats = (0, express_async_handler_1.default)(async (req, res) 
             },
         }),
         db_1.prisma.instructor.findMany({
-            take: 5,
+            take: 10,
             orderBy: { averageRating: 'desc' },
-            include: { user: { select: { fullName: true, avatarUrl: true } } },
+            include: {
+                user: { select: { fullName: true, email: true, avatarUrl: true } },
+                _count: { select: { courses: true } },
+                courses: {
+                    select: {
+                        totalEnrollments: true,
+                        _count: { select: { enrollments: true } },
+                    },
+                },
+            },
         }),
-        // Enrollment chart data: last 10 days
-        db_1.prisma.$queryRaw `
+        // Chart: current period
+        db_1.prisma.$queryRawUnsafe(`
       SELECT DATE(enrolled_at) as date, COUNT(*)::int as count
       FROM enrollments
-      WHERE enrolled_at >= NOW() - INTERVAL '10 days'
+      WHERE enrolled_at >= NOW() - INTERVAL '${days} days'
       GROUP BY DATE(enrolled_at)
       ORDER BY date ASC
-    `,
+    `),
+        // Previous period enrollments count (for % change)
+        db_1.prisma.enrollment.count({
+            where: {
+                enrolledAt: {
+                    gte: new Date(Date.now() - days * 2 * 86400000),
+                    lt: new Date(Date.now() - days * 86400000),
+                },
+            },
+        }),
+        // Previous period users (for % change)
+        db_1.prisma.user.count({
+            where: {
+                createdAt: {
+                    gte: new Date(Date.now() - days * 2 * 86400000),
+                    lt: new Date(Date.now() - days * 86400000),
+                },
+            },
+        }),
+        // Previous period courses (for % change)
+        db_1.prisma.course.count({
+            where: {
+                createdAt: {
+                    gte: new Date(Date.now() - days * 2 * 86400000),
+                    lt: new Date(Date.now() - days * 86400000),
+                },
+            },
+        }),
     ]);
+    // Compute current-period enrollments sum from chart for change %
+    const currentPeriodEnrollments = recentEnrollments.reduce((sum, r) => sum + (typeof r.count === 'bigint' ? Number(r.count) : Number(r.count)), 0);
+    const pctChange = (curr, prev) => {
+        if (prev === 0)
+            return curr > 0 ? 100 : 0;
+        return Math.round(((curr - prev) / prev) * 100);
+    };
     res.json({
         stats: {
             totalUsers,
@@ -56,10 +100,19 @@ const getDashboardStats = (0, express_async_handler_1.default)(async (req, res) 
             totalCourses,
             totalRevenue: totalRevenue._sum.amount || 0,
         },
+        changes: {
+            enrollments: pctChange(currentPeriodEnrollments, prevEnrollments),
+            users: pctChange(totalUsers, totalUsers - prevUsers),
+            courses: pctChange(totalCourses, totalCourses - prevCourses),
+        },
         recentUsers,
         popularCourses,
         topInstructors,
-        enrollmentChart: recentEnrollments,
+        enrollmentChart: recentEnrollments.map((r) => ({
+            date: r.date instanceof Date ? r.date.toISOString().split('T')[0] : String(r.date),
+            count: typeof r.count === 'bigint' ? Number(r.count) : Number(r.count),
+        })),
+        days,
     });
 });
 exports.getDashboardStats = getDashboardStats;
@@ -80,11 +133,21 @@ const getAllUsers = (0, express_async_handler_1.default)(async (req, res) => {
                 { email: { contains: search, mode: 'insensitive' } },
             ],
         }),
-        ...(role && { role }),
-        ...(!isRequesterSuperAdmin && {
-            role: { not: 'SUPER_ADMIN' }
-        })
     };
+    if (role) {
+        // If a specific role is requested, use it. 
+        // Security check: normal admins cannot request SUPER_ADMIN
+        if (!isRequesterSuperAdmin && role === 'SUPER_ADMIN') {
+            where.role = 'NONE'; // Should return nothing or we could throw 403
+        }
+        else {
+            where.role = role;
+        }
+    }
+    else if (!isRequesterSuperAdmin) {
+        // If no role requested, show everything except SUPER_ADMIN
+        where.role = { not: 'SUPER_ADMIN' };
+    }
     const [users, total] = await Promise.all([
         db_1.prisma.user.findMany({
             where,
@@ -138,9 +201,10 @@ const getAllCourses = (0, express_async_handler_1.default)(async (req, res) => {
     const limit = parseInt(req.query.limit) || 20;
     const skip = (page - 1) * limit;
     const search = req.query.search || '';
-    const where = search
-        ? { title: { contains: search, mode: 'insensitive' } }
-        : {};
+    const where = {
+        deletedAt: null,
+        ...(search && { title: { contains: search, mode: 'insensitive' } }),
+    };
     const [courses, total] = await Promise.all([
         db_1.prisma.course.findMany({
             where,
@@ -158,7 +222,7 @@ const getAllCourses = (0, express_async_handler_1.default)(async (req, res) => {
     res.json({ courses, total, page, pages: Math.ceil(total / limit) });
 });
 exports.getAllCourses = getAllCourses;
-// @desc    Toggle course published
+// @desc    Toggle course published (Draft <-> Published)
 // @route   PATCH /api/admin/courses/:id/toggle
 // @access  Admin
 const toggleCoursePublished = (0, express_async_handler_1.default)(async (req, res) => {
@@ -168,13 +232,14 @@ const toggleCoursePublished = (0, express_async_handler_1.default)(async (req, r
         res.status(404);
         throw new Error('Course not found');
     }
+    const newStatus = course.status === 'PUBLISHED' ? 'DRAFT' : 'PUBLISHED';
     const updated = await db_1.prisma.course.update({
         where: { id: courseId },
         data: {
-            isPublished: !course.isPublished,
-            publishedAt: !course.isPublished ? new Date() : null,
+            status: newStatus,
+            publishedAt: newStatus === 'PUBLISHED' ? new Date() : course.publishedAt,
         },
-        select: { id: true, title: true, isPublished: true },
+        select: { id: true, title: true, status: true },
     });
     res.json(updated);
 });
@@ -263,3 +328,122 @@ const deleteUser = (0, express_async_handler_1.default)(async (req, res) => {
     res.json({ message: 'User removed' });
 });
 exports.deleteUser = deleteUser;
+// @desc    Create admin user (Super Admin only)
+// @route   POST /api/admin/users/create-admin
+// @access  Super Admin
+const createAdminUser = (0, express_async_handler_1.default)(async (req, res) => {
+    if (req.user.role !== 'SUPER_ADMIN') {
+        res.status(403);
+        throw new Error('Only Super Admin can create Admin accounts');
+    }
+    const { fullName, email, password, role = 'ADMIN' } = req.body;
+    if (!fullName || !email || !password) {
+        res.status(400);
+        throw new Error('fullName, email, and password are required');
+    }
+    const validRoles = ['ADMIN', 'SUPER_ADMIN'];
+    if (!validRoles.includes(role)) {
+        res.status(400);
+        throw new Error('Role must be ADMIN or SUPER_ADMIN');
+    }
+    const existing = await db_1.prisma.user.findUnique({ where: { email } });
+    if (existing) {
+        res.status(400);
+        throw new Error('A user with this email already exists');
+    }
+    const bcrypt = require('bcryptjs');
+    const hashedPassword = await bcrypt.hash(password, 12);
+    const newUser = await db_1.prisma.user.create({
+        data: {
+            fullName,
+            email,
+            passwordHash: hashedPassword,
+            role: role,
+            isEmailVerified: true,
+            isActive: true,
+        },
+        select: { id: true, fullName: true, email: true, role: true, createdAt: true },
+    });
+    res.status(201).json({ message: 'Admin account created successfully', user: newUser });
+});
+exports.createAdminUser = createAdminUser;
+// @desc    Get detailed analytics
+// @route   GET /api/admin/analytics
+// @access  Admin
+const getAnalytics = (0, express_async_handler_1.default)(async (req, res) => {
+    const [revenuePerCourse, instructorPerformance, categoryDistribution,] = await Promise.all([
+        // 1. Revenue per course
+        db_1.prisma.payment.groupBy({
+            by: ['courseId'],
+            _sum: { amount: true },
+            where: { status: 'COMPLETED' },
+        }),
+        // 2. Instructor performance
+        db_1.prisma.instructor.findMany({
+            include: {
+                user: { select: { fullName: true } },
+                courses: {
+                    include: {
+                        _count: {
+                            select: {
+                                enrollments: { where: { status: 'COMPLETED' } }
+                            }
+                        },
+                        enrollments: { select: { id: true } }
+                    }
+                }
+            }
+        }),
+        // 3. Category distribution
+        db_1.prisma.category.findMany({
+            select: {
+                name: true,
+                _count: { select: { courses: true } }
+            }
+        })
+    ]);
+    // Transform instructor performance to calculate rates
+    // Note: For a more accurate "Completion Rate per Instructor", 
+    // we'd need to count enrollments with status 'COMPLETED' across all their courses.
+    const instructors = await db_1.prisma.instructor.findMany({
+        include: {
+            user: { select: { fullName: true } },
+            courses: {
+                include: {
+                    _count: {
+                        select: {
+                            enrollments: { where: { status: 'COMPLETED' } }
+                        }
+                    },
+                    enrollments: { select: { id: true } }
+                }
+            }
+        }
+    });
+    const instructorStats = instructors.map(inst => {
+        let totalEnrolled = 0;
+        let totalCompleted = 0;
+        inst.courses.forEach(c => {
+            totalEnrolled += c.enrollments.length;
+            totalCompleted += c._count.enrollments;
+        });
+        return {
+            name: inst.user.fullName,
+            totalStudents: totalEnrolled,
+            totalCompletions: totalCompleted,
+            completionRate: totalEnrolled > 0 ? Math.round((totalCompleted / totalEnrolled) * 100) : 0
+        };
+    });
+    res.json({
+        revenuePerCourse: revenuePerCourse.map(r => ({
+            courseId: r.courseId,
+            totalRevenue: r._sum.amount || 0
+        })),
+        instructorPerformance: instructorStats,
+        categoryDistribution: categoryDistribution.map(c => ({
+            name: c.name,
+            courseCount: c._count.courses
+        }))
+    });
+});
+exports.getAnalytics = getAnalytics;

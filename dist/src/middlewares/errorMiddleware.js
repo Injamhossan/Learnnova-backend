@@ -9,6 +9,7 @@ const notFound = (req, res, next) => {
 exports.notFound = notFound;
 const errorHandler = (err, req, res, next) => {
     const statusCode = res.statusCode === 200 ? 500 : res.statusCode;
+    console.error('Error:', err); // Log the error for debugging
     res.status(statusCode);
     res.json({
         message: err.message,
