@@ -19,6 +19,7 @@ const getMyProfile = asyncHandler(async (req: Request, res: Response) => {
     select: {
       id: true, fullName: true, email: true, role: true,
       avatarUrl: true, bio: true, phone: true, createdAt: true, isActive: true,
+      isEmailVerified: true,
       instructor: {
         select: {
           headline: true, description: true, expertise: true,

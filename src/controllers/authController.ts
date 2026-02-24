@@ -289,4 +289,49 @@ const verifyEmail = asyncHandler(async (req: Request, res: Response) => {
   });
 });
 
-export { authUser, registerUser, socialLogin, forgotPassword, resetPassword, verifyEmail };
+// @desc    Request Email Verification Code
+const requestEmailVerification = asyncHandler(async (req: Request, res: Response) => {
+  const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+
+  if (!user) {
+    res.status(404);
+    throw new Error('User not found');
+  }
+
+  if (user.isEmailVerified) {
+    res.status(400);
+    throw new Error('Email already verified');
+  }
+
+  const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+  const verificationCodeExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      verificationCode,
+      verificationCodeExpires,
+    },
+  });
+
+  const emailHtml = getEmailTemplate(
+    'Verify Your Email',
+    `Hi ${user.fullName}, please use the following code to verify your email address.`,
+    verificationCode
+  );
+
+  await sendEmail({
+    email: user.email,
+    subject: 'Learnova - Email Verification',
+    message: emailHtml,
+    attachments: [{
+      filename: 'NavLogo.png',
+      path: path.join(__dirname, '..', 'assets', 'NavLogo.png'),
+      cid: 'logo'
+    }]
+  });
+
+  res.status(200).json({ message: 'Verification code sent to email' });
+});
+
+export { authUser, registerUser, socialLogin, forgotPassword, resetPassword, verifyEmail, requestEmailVerification };

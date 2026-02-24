@@ -10,10 +10,14 @@ import userRoutes from './src/routes/userRoutes';
 import courseRoutes from './src/routes/courseRoutes';
 import studentRoutes from './src/routes/studentRoutes';
 import adminRoutes from './src/routes/adminRoutes';
+import notificationRoutes from './src/routes/notificationRoutes';
 
 import morgan from 'morgan';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+
+import { createServer } from 'http';
+import { initSocket } from './src/utils/socket';
 
 // Load environment variables
 dotenv.config();
@@ -22,7 +26,11 @@ dotenv.config();
 connectDB();
 
 const app = express();
+const httpServer = createServer(app);
 const PORT = process.env.PORT || 5000;
+
+// Initialize Socket.io
+initSocket(httpServer);
 
 // Rate Limiting
 const limiter = rateLimit({
@@ -46,6 +54,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/courses', courseRoutes);
 app.use('/api/students', studentRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Basic Route
 app.get('/', (req, res) => {
@@ -57,6 +66,6 @@ app.use(notFound);
 app.use(errorHandler);
 
 // Start Server
-app.listen(PORT, () => {
+httpServer.listen(PORT, () => {
   console.log(`Server is running on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode`);
 });

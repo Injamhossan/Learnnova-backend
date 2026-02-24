@@ -1,6 +1,10 @@
 import { Request, Response } from 'express';
 import asyncHandler from 'express-async-handler';
+import path from 'path';
 import { prisma } from '../config/db';
+import sendEmail from '../utils/sendEmail';
+import { getEmailTemplate } from '../utils/emailTemplates';
+import { sendNotification } from '../utils/socket';
 
 const COURSE_INCLUDE = {
   instructor: { include: { user: { select: { fullName: true } } } },
@@ -15,15 +19,16 @@ const enrollInCourse = asyncHandler(async (req: Request, res: Response) => {
   const course = await prisma.course.findUnique({ where: { id: courseId } });
   if (!course) { res.status(404); throw new Error('Course not found'); }
 
-  const enrollment = await prisma.$transaction(async (tx) => {
+  const { enrollment, notif } = await prisma.$transaction(async (tx) => {
     const existing = await tx.enrollment.findUnique({ where: { userId_courseId: { userId, courseId } } });
     if (existing) {
       if (existing.status === 'DROPPED') {
         // Re-active if dropped
-        return await tx.enrollment.update({
+        const updated = await tx.enrollment.update({
           where: { id: existing.id },
           data: { status: 'ACTIVE', enrolledAt: new Date() }
         });
+        return { enrollment: updated, notif: null };
       }
       throw new Error('Already enrolled in this course');
     }
@@ -31,8 +36,52 @@ const enrollInCourse = asyncHandler(async (req: Request, res: Response) => {
     const newEnrollment = await tx.enrollment.create({ data: { userId, courseId, status: 'ACTIVE' } });
     await tx.course.update({ where: { id: courseId }, data: { totalEnrollments: { increment: 1 } } });
     
-    return newEnrollment;
+    // Create DB Notification
+    const dbNotif = await tx.notification.create({
+      data: {
+        userId,
+        type: 'ENROLLMENT',
+        title: 'New Course Enrollment',
+        message: `You have successfully enrolled in "${course.title}". Happy learning!`,
+        linkUrl: `/courses/${courseId}`
+      }
+    });
+
+    return { enrollment: newEnrollment, notif: dbNotif };
   });
+
+  // ── Actions outside transaction ──────────────────────────────────────────
+  if (notif) {
+    // Real-time notification
+    sendNotification(userId, notif);
+
+    // Send Confirmation Email (Async, don't await if you want speed, but here we wait for safety)
+    try {
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      if (user) {
+        const emailHtml = getEmailTemplate(
+          'Enrollment Confirmation',
+          `Congratulations! You have successfully enrolled in "${course.title}". You can now access all course materials and start your learning journey.`,
+          undefined,
+          'Access Course',
+          `${process.env.FRONTEND_URL || 'http://localhost:3000'}/courses/${courseId}`
+        );
+
+        await sendEmail({
+          email: user.email,
+          subject: `Learnova - Enrolled: ${course.title}`,
+          message: emailHtml,
+          attachments: [{
+            filename: 'NavLogo.png',
+            path: path.join(__dirname, '..', 'assets', 'NavLogo.png'),
+            cid: 'logo'
+          }]
+        });
+      }
+    } catch (emailErr) {
+      console.error('Failed to send enrollment email:', emailErr);
+    }
+  }
 
   res.status(201).json(enrollment);
 });
