@@ -8,6 +8,7 @@
     "dev": "ts-node-dev --respawn --transpile-only index.ts",
     "build": "tsc",
     "vercel-build": "prisma generate && tsc",
+    "postinstall": "prisma generate",
     "test": "jest"
   },
   "keywords": [],
