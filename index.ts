@@ -46,7 +46,10 @@ const limiter = rateLimit({
 app.use(helmet()); // Security headers
 app.use(limiter); // Applied to all requests
 app.use(morgan('dev')); // Logging
-app.use(cors());
+app.use(cors({
+  origin: [process.env.FRONTEND_URL || 'http://localhost:3000', 'https://learnnova-ih.vercel.app'],
+  credentials: true
+}));
 app.use(express.json());
 
 // Routes
@@ -68,6 +71,10 @@ app.use(notFound);
 app.use(errorHandler);
 
 // Start Server
-httpServer.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode`);
-});
+if (process.env.NODE_ENV !== 'production') {
+  httpServer.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode`);
+  });
+}
+
+export default app;
