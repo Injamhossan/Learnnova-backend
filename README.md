@@ -14,6 +14,21 @@ Learnova is a premium online learning platform designed to bridge the gap betwee
 - **Database Architecture**: Powered by Prisma ORM and PostgreSQL with complex relations.
 - **Global Error Handling**: Centralized middleware for consistent API responses.
 - **Rate Limiting & Security**: Helmet, CORS, and request rate limiting implemented.
+---
+
+---
+
+## 👤 Author
+- **Injam Hossan Mamun** - [GitHub](https://github.com/Injamhossan)
+
+## 🏗️ Tech Stack
+- **Runtime**: Node.js
+- **Framework**: Express.js
+- **ORM**: Prisma
+- **Database**: PostgreSQL
+- **Security**: JWT, Bcrypt, Helmet
+- **Validation**: Zod
+- **Email**: Nodemailer
 
 ---
 
@@ -105,13 +120,11 @@ You can use the following credentials after running the seed script:
 - **Email**: `admin@learnnova.com`
 - **Password**: `learnnova123`
 
----
+**Student Account:**
+- **Email**: `jabed@gmail.com`
+- **Password**: `12345678`
 
-## 🏗️ Tech Stack
-- **Runtime**: Node.js
-- **Framework**: Express.js
-- **ORM**: Prisma
-- **Database**: PostgreSQL
-- **Security**: JWT, Bcrypt, Helmet
-- **Validation**: Zod
-- **Email**: Nodemailer
+**Instructor Account:**
+- **Email**: `jahedulislam@gmail.com`
+- **Password**: `12345678`
+
