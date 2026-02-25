@@ -24,14 +24,16 @@ const router = express.Router();
 // Public routes
 router.get('/', getCourses);
 router.get('/categories', getCategories);
+// Authenticated routes (Specific)
+router.get('/my-courses', protect, isInstructor, getMyCourses);
+router.get('/instructor/stats', protect, isInstructor, getInstructorStats);
+
+// Public routes (Generic parameter)
 router.get('/:idOrSlug', getCourseDetail);
 
 // Authenticated routes
 router.use(protect);
 
-// Only instructors can create and see their dashboard
-router.get('/my-courses', isInstructor, getMyCourses);
-router.get('/instructor/stats', isInstructor, getInstructorStats);
 router.post('/', isInstructor, createCourse);
 
 // Staff (Instructor, Admin, SuperAdmin) can manage (Update/Delete)

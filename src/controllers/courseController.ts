@@ -60,7 +60,10 @@ const getMyCourses = asyncHandler(async (req: Request, res: Response) => {
   }
 
   const courses = await prisma.course.findMany({
-    where: { instructorId },
+    where: { 
+      instructorId,
+      deletedAt: null 
+    },
     include: {
       category: { select: { name: true, slug: true } },
       _count: { select: { enrollments: true } }
@@ -92,6 +95,10 @@ const createCourse = asyncHandler(async (req: Request, res: Response) => {
       whatYouWillLearn: req.body.whatYouWillLearn || [],
       requirements: req.body.requirements || [],
     },
+    include: {
+      category: { select: { name: true, slug: true } },
+      _count: { select: { enrollments: true } }
+    }
   });
 
   res.status(201).json(course);
@@ -141,7 +148,11 @@ const updateCourse = asyncHandler(async (req: Request, res: Response) => {
 
   const updatedCourse = await prisma.course.update({
     where: { id: courseId },
-    data
+    data,
+    include: {
+      category: { select: { name: true, slug: true } },
+      _count: { select: { enrollments: true } }
+    }
   });
 
   res.json(updatedCourse);
