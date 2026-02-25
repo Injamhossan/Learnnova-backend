@@ -3,13 +3,15 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.resetPassword = exports.forgotPassword = exports.socialLogin = exports.registerUser = exports.authUser = void 0;
+exports.requestEmailVerification = exports.verifyEmail = exports.resetPassword = exports.forgotPassword = exports.socialLogin = exports.registerUser = exports.authUser = void 0;
 const crypto_1 = __importDefault(require("crypto"));
+const path_1 = __importDefault(require("path"));
 const express_async_handler_1 = __importDefault(require("express-async-handler"));
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const db_1 = require("../config/db");
 const generateToken_1 = __importDefault(require("../utils/generateToken"));
 const sendEmail_1 = __importDefault(require("../utils/sendEmail"));
+const emailTemplates_1 = require("../utils/emailTemplates");
 // @desc    Auth user & get token
 const authUser = (0, express_async_handler_1.default)(async (req, res) => {
     const { email, password } = req.body;
@@ -42,12 +44,16 @@ const registerUser = (0, express_async_handler_1.default)(async (req, res) => {
     const salt = await bcryptjs_1.default.genSalt(10);
     const passwordHash = await bcryptjs_1.default.hash(password, salt);
     const user = await db_1.prisma.$transaction(async (tx) => {
+        const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+        const verificationCodeExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
         const newUser = await tx.user.create({
             data: {
                 fullName,
                 email,
                 passwordHash,
                 role: role?.toUpperCase() || 'STUDENT',
+                verificationCode,
+                verificationCodeExpires,
             },
         });
         if (newUser.role === 'INSTRUCTOR') {
@@ -55,6 +61,18 @@ const registerUser = (0, express_async_handler_1.default)(async (req, res) => {
                 data: { userId: newUser.id }
             });
         }
+        // Send Verification Email
+        const emailHtml = (0, emailTemplates_1.getEmailTemplate)('Verify Your Email', `Welcome to Learnova, ${fullName}! Please use the following code to verify your email address and activate your account.`, verificationCode);
+        await (0, sendEmail_1.default)({
+            email: newUser.email,
+            subject: 'Learnova - Email Verification',
+            message: emailHtml,
+            attachments: [{
+                    filename: 'NavLogo.png',
+                    path: path_1.default.join(__dirname, '..', 'assets', 'NavLogo.png'),
+                    cid: 'logo'
+                }]
+        });
         return newUser;
     });
     if (user) {
@@ -136,18 +154,17 @@ const forgotPassword = (0, express_async_handler_1.default)(async (req, res) => 
     });
     // Create reset url
     const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
-    const message = `
-    <h1>Password Reset Request</h1>
-    <p>You are receiving this email because you (or someone else) has requested the reset of a password.</p>
-    <p>Please click on the following link to complete the process:</p>
-    <a href="${resetUrl}" clicktracking=off>${resetUrl}</a>
-    <p>If you did not request this, please ignore this email and your password will remain unchanged.</p>
-  `;
+    const emailHtml = (0, emailTemplates_1.getEmailTemplate)('Password Reset Request', `Hi ${user.fullName}, you are receiving this email because you (or someone else) has requested the reset of a password. Please click the button below to reset your password.`, undefined, 'Reset Password', resetUrl);
     try {
         await (0, sendEmail_1.default)({
             email: user.email,
             subject: 'Learnova - Password Reset Request',
-            message,
+            message: emailHtml,
+            attachments: [{
+                    filename: 'NavLogo.png',
+                    path: path_1.default.join(__dirname, '..', 'assets', 'NavLogo.png'),
+                    cid: 'logo'
+                }]
         });
         res.status(200).json({ message: 'Email sent' });
     }
@@ -203,3 +220,67 @@ const resetPassword = (0, express_async_handler_1.default)(async (req, res) => {
     });
 });
 exports.resetPassword = resetPassword;
+// @desc    Verify Email
+const verifyEmail = (0, express_async_handler_1.default)(async (req, res) => {
+    const { email, code } = req.body;
+    const user = await db_1.prisma.user.findFirst({
+        where: {
+            email,
+            verificationCode: code,
+            verificationCodeExpires: {
+                gt: new Date(),
+            },
+        },
+    });
+    if (!user) {
+        res.status(400);
+        throw new Error('Invalid or expired verification code');
+    }
+    await db_1.prisma.user.update({
+        where: { id: user.id },
+        data: {
+            isEmailVerified: true,
+            verificationCode: null,
+            verificationCodeExpires: null,
+        },
+    });
+    res.status(200).json({
+        message: 'Email verified successfully',
+        isEmailVerified: true,
+    });
+});
+exports.verifyEmail = verifyEmail;
+// @desc    Request Email Verification Code
+const requestEmailVerification = (0, express_async_handler_1.default)(async (req, res) => {
+    const user = await db_1.prisma.user.findUnique({ where: { id: req.user.id } });
+    if (!user) {
+        res.status(404);
+        throw new Error('User not found');
+    }
+    if (user.isEmailVerified) {
+        res.status(400);
+        throw new Error('Email already verified');
+    }
+    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const verificationCodeExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    await db_1.prisma.user.update({
+        where: { id: user.id },
+        data: {
+            verificationCode,
+            verificationCodeExpires,
+        },
+    });
+    const emailHtml = (0, emailTemplates_1.getEmailTemplate)('Verify Your Email', `Hi ${user.fullName}, please use the following code to verify your email address.`, verificationCode);
+    await (0, sendEmail_1.default)({
+        email: user.email,
+        subject: 'Learnova - Email Verification',
+        message: emailHtml,
+        attachments: [{
+                filename: 'NavLogo.png',
+                path: path_1.default.join(__dirname, '..', 'assets', 'NavLogo.png'),
+                cid: 'logo'
+            }]
+    });
+    res.status(200).json({ message: 'Verification code sent to email' });
+});
+exports.requestEmailVerification = requestEmailVerification;

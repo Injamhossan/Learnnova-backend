@@ -14,15 +14,22 @@ const userRoutes_1 = __importDefault(require("./src/routes/userRoutes"));
 const courseRoutes_1 = __importDefault(require("./src/routes/courseRoutes"));
 const studentRoutes_1 = __importDefault(require("./src/routes/studentRoutes"));
 const adminRoutes_1 = __importDefault(require("./src/routes/adminRoutes"));
+const notificationRoutes_1 = __importDefault(require("./src/routes/notificationRoutes"));
+const paymentRoutes_1 = __importDefault(require("./src/routes/paymentRoutes"));
 const morgan_1 = __importDefault(require("morgan"));
 const helmet_1 = __importDefault(require("helmet"));
 const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
+const http_1 = require("http");
+const socket_1 = require("./src/utils/socket");
 // Load environment variables
 dotenv_1.default.config();
 // Connect to Database
 (0, db_1.connectDB)();
 const app = (0, express_1.default)();
+const httpServer = (0, http_1.createServer)(app);
 const PORT = process.env.PORT || 5000;
+// Initialize Socket.io
+(0, socket_1.initSocket)(httpServer);
 // Rate Limiting
 const limiter = (0, express_rate_limit_1.default)({
     windowMs: 15 * 60 * 1000, // 15 minutes
@@ -43,6 +50,8 @@ app.use('/api/users', userRoutes_1.default);
 app.use('/api/courses', courseRoutes_1.default);
 app.use('/api/students', studentRoutes_1.default);
 app.use('/api/admin', adminRoutes_1.default);
+app.use('/api/notifications', notificationRoutes_1.default);
+app.use('/api/payments', paymentRoutes_1.default);
 // Basic Route
 app.get('/', (req, res) => {
     res.json({ message: 'Welcome to Learnova API' });
@@ -51,6 +60,6 @@ app.get('/', (req, res) => {
 app.use(errorMiddleware_1.notFound);
 app.use(errorMiddleware_1.errorHandler);
 // Start Server
-app.listen(PORT, () => {
+httpServer.listen(PORT, () => {
     console.log(`Server is running on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode`);
 });

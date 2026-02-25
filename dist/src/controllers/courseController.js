@@ -88,6 +88,8 @@ const createCourse = (0, express_async_handler_1.default)(async (req, res) => {
             level: level || 'ALL',
             categoryId,
             instructorId,
+            whatYouWillLearn: req.body.whatYouWillLearn || [],
+            requirements: req.body.requirements || [],
         },
     });
     res.status(201).json(course);

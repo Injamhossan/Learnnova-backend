@@ -5,7 +5,11 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getDashboardStats = exports.updateLessonProgress = exports.removeFromWishlist = exports.addToWishlist = exports.getWishlist = exports.getMyCertificates = exports.getMyEnrollments = exports.getMyEnrolledCourses = exports.dropCourse = exports.enrollInCourse = void 0;
 const express_async_handler_1 = __importDefault(require("express-async-handler"));
+const path_1 = __importDefault(require("path"));
 const db_1 = require("../config/db");
+const sendEmail_1 = __importDefault(require("../utils/sendEmail"));
+const emailTemplates_1 = require("../utils/emailTemplates");
+const socket_1 = require("../utils/socket");
 const COURSE_INCLUDE = {
     instructor: { include: { user: { select: { fullName: true } } } },
     category: { select: { name: true } },
@@ -19,22 +23,62 @@ const enrollInCourse = (0, express_async_handler_1.default)(async (req, res) => 
         res.status(404);
         throw new Error('Course not found');
     }
-    const enrollment = await db_1.prisma.$transaction(async (tx) => {
+    if (course.price > 0) {
+        res.status(400);
+        throw new Error('This is a paid course. Please use the checkout process.');
+    }
+    const { enrollment, notif } = await db_1.prisma.$transaction(async (tx) => {
         const existing = await tx.enrollment.findUnique({ where: { userId_courseId: { userId, courseId } } });
         if (existing) {
             if (existing.status === 'DROPPED') {
                 // Re-active if dropped
-                return await tx.enrollment.update({
+                const updated = await tx.enrollment.update({
                     where: { id: existing.id },
                     data: { status: 'ACTIVE', enrolledAt: new Date() }
                 });
+                return { enrollment: updated, notif: null };
             }
             throw new Error('Already enrolled in this course');
         }
         const newEnrollment = await tx.enrollment.create({ data: { userId, courseId, status: 'ACTIVE' } });
         await tx.course.update({ where: { id: courseId }, data: { totalEnrollments: { increment: 1 } } });
-        return newEnrollment;
+        // Create DB Notification
+        const dbNotif = await tx.notification.create({
+            data: {
+                userId,
+                type: 'ENROLLMENT',
+                title: 'New Course Enrollment',
+                message: `You have successfully enrolled in "${course.title}". Happy learning!`,
+                linkUrl: `/courses/${courseId}`
+            }
+        });
+        return { enrollment: newEnrollment, notif: dbNotif };
     });
+    // ── Actions outside transaction ──────────────────────────────────────────
+    if (notif) {
+        // Real-time notification
+        (0, socket_1.sendNotification)(userId, notif);
+        // Send Confirmation Email (Async, don't await if you want speed, but here we wait for safety)
+        try {
+            const user = await db_1.prisma.user.findUnique({ where: { id: userId } });
+            if (user) {
+                const emailHtml = (0, emailTemplates_1.getEmailTemplate)('Enrollment Confirmation', `Congratulations! You have successfully enrolled in "${course.title}". You can now access all course materials and start your learning journey.`, undefined, 'Access Course', `${process.env.FRONTEND_URL || 'http://localhost:3000'}/courses/${courseId}`);
+                await (0, sendEmail_1.default)({
+                    email: user.email,
+                    subject: `Learnova - Enrolled: ${course.title}`,
+                    message: emailHtml,
+                    attachments: [{
+                            filename: 'NavLogo.png',
+                            path: path_1.default.join(__dirname, '..', 'assets', 'NavLogo.png'),
+                            cid: 'logo'
+                        }]
+                });
+            }
+        }
+        catch (emailErr) {
+            console.error('Failed to send enrollment email:', emailErr);
+        }
+    }
     res.status(201).json(enrollment);
 });
 exports.enrollInCourse = enrollInCourse;

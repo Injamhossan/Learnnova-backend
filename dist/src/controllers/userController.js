@@ -23,6 +23,7 @@ const getMyProfile = (0, express_async_handler_1.default)(async (req, res) => {
         select: {
             id: true, fullName: true, email: true, role: true,
             avatarUrl: true, bio: true, phone: true, createdAt: true, isActive: true,
+            isEmailVerified: true,
             instructor: {
                 select: {
                     headline: true, description: true, expertise: true,
