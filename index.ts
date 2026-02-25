@@ -27,6 +27,36 @@ dotenv.config();
 connectDB();
 
 const app = express();
+
+// 1. Custom CORS Middleware (More robust for Vercel/Serverless)
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  const allowedOrigins = [
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'https://learnnova-ih.vercel.app',
+    process.env.FRONTEND_URL,
+  ].filter(Boolean);
+
+  if (origin && (allowedOrigins.includes(origin) || origin.endsWith('.vercel.app'))) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else if (!origin) {
+    // Allow server-to-server or tools like Postman/curl
+    res.setHeader('Access-Control-Allow-Origin', '*'); 
+  }
+
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+
+  // Handle Preflight
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
+  
+  next();
+});
+
 const httpServer = createServer(app);
 const PORT = process.env.PORT || 5000;
 
@@ -35,21 +65,17 @@ initSocket(httpServer);
 
 // Rate Limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: process.env.NODE_ENV === 'development' ? 5000 : 100, // much higher limit in dev
+  windowMs: 15 * 60 * 1000, 
+  max: process.env.NODE_ENV === 'development' ? 5000 : 100, 
   message: { message: 'Too many requests from this IP, please try again after 15 minutes' },
   standardHeaders: true,
   legacyHeaders: false,
 });
 
 // Middleware
-app.use(helmet()); // Security headers
-app.use(limiter); // Applied to all requests
-app.use(morgan('dev')); // Logging
-app.use(cors({
-  origin: [process.env.FRONTEND_URL || 'http://localhost:3000', 'https://learnnova-ih.vercel.app'],
-  credentials: true
-}));
+// app.use(helmet()); 
+// app.use(limiter); 
+app.use(morgan('dev')); 
 app.use(express.json());
 
 // Routes
