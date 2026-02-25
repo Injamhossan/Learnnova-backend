@@ -11,6 +11,7 @@ import courseRoutes from './src/routes/courseRoutes';
 import studentRoutes from './src/routes/studentRoutes';
 import adminRoutes from './src/routes/adminRoutes';
 import notificationRoutes from './src/routes/notificationRoutes';
+import paymentRoutes from './src/routes/paymentRoutes';
 
 import morgan from 'morgan';
 import helmet from 'helmet';
@@ -55,6 +56,7 @@ app.use('/api/courses', courseRoutes);
 app.use('/api/students', studentRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/payments', paymentRoutes);
 
 // Basic Route
 app.get('/', (req, res) => {

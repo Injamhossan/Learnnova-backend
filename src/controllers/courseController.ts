@@ -85,10 +85,12 @@ const createCourse = asyncHandler(async (req: Request, res: Response) => {
       slug,
       description,
       thumbnailUrl,
-      price: parseFloat(price) || 0,
+      price: parseFloat(price as string) || 0,
       level: level || 'ALL',
       categoryId,
       instructorId,
+      whatYouWillLearn: req.body.whatYouWillLearn || [],
+      requirements: req.body.requirements || [],
     },
   });
 

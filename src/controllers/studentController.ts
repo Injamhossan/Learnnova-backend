@@ -19,6 +19,11 @@ const enrollInCourse = asyncHandler(async (req: Request, res: Response) => {
   const course = await prisma.course.findUnique({ where: { id: courseId } });
   if (!course) { res.status(404); throw new Error('Course not found'); }
 
+  if (course.price > 0) {
+    res.status(400);
+    throw new Error('This is a paid course. Please use the checkout process.');
+  }
+
   const { enrollment, notif } = await prisma.$transaction(async (tx) => {
     const existing = await tx.enrollment.findUnique({ where: { userId_courseId: { userId, courseId } } });
     if (existing) {
