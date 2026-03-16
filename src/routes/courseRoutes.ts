@@ -15,9 +15,10 @@ import {
   deleteSection,
   addLesson,
   updateLesson,
-  deleteLesson
+  deleteLesson,
+  getYoutubeDuration
 } from '../controllers/lessonController';
-import { protect, isInstructor, isStaff } from '../middlewares/authMiddleware';
+import { protect, optionalProtect, isInstructor, isStaff } from '../middlewares/authMiddleware';
 
 const router = express.Router();
 
@@ -25,11 +26,12 @@ const router = express.Router();
 router.get('/', getCourses);
 router.get('/categories', getCategories);
 // Authenticated routes (Specific)
+router.get('/utils/youtube-duration', protect, isStaff, getYoutubeDuration);
 router.get('/my-courses', protect, isInstructor, getMyCourses);
 router.get('/instructor/stats', protect, isInstructor, getInstructorStats);
 
 // Public routes (Generic parameter)
-router.get('/:idOrSlug', getCourseDetail);
+router.get('/:idOrSlug', optionalProtect, getCourseDetail);
 
 // Authenticated routes
 router.use(protect);

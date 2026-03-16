@@ -32,16 +32,16 @@ const PORT = process.env.PORT || 5000;
 (0, socket_1.initSocket)(httpServer);
 // Rate Limiting
 const limiter = (0, express_rate_limit_1.default)({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: process.env.NODE_ENV === 'development' ? 5000 : 100, // much higher limit in dev
+    windowMs: 15 * 60 * 1000, 
+    max: process.env.NODE_ENV === 'development' ? 5000 : 100, 
     message: { message: 'Too many requests from this IP, please try again after 15 minutes' },
     standardHeaders: true,
     legacyHeaders: false,
 });
 // Middleware
-app.use((0, helmet_1.default)()); // Security headers
-app.use(limiter); // Applied to all requests
-app.use((0, morgan_1.default)('dev')); // Logging
+app.use((0, helmet_1.default)()); 
+app.use(limiter);
+app.use((0, morgan_1.default)('dev'));
 app.use((0, cors_1.default)());
 app.use(express_1.default.json());
 // Routes

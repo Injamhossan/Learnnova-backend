@@ -264,7 +264,28 @@ const getCourseDetail = asyncHandler(async (req: Request, res: Response) => {
     throw new Error('Course not found');
   }
 
-  res.json(course);
+  let completedLessonIds: string[] = [];
+  if (req.user) {
+    const progress = await prisma.lessonProgress.findMany({
+      where: { 
+        userId: req.user.id, 
+        isCompleted: true, 
+        lesson: { section: { courseId: course.id } } 
+      },
+      select: { lessonId: true }
+    });
+    completedLessonIds = progress.map((p: any) => p.lessonId);
+  }
+
+  const sectionsWithProgress = course.sections.map((sec: any) => ({
+    ...sec,
+    lessons: sec.lessons.map((les: any) => ({
+      ...les,
+      isCompleted: completedLessonIds.includes(les.id)
+    }))
+  }));
+
+  res.json({ ...course, sections: sectionsWithProgress });
 });
 
 // @desc    Get all categories for selection

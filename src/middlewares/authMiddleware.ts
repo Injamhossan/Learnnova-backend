@@ -117,4 +117,20 @@ const isStudent = (req: Request, res: Response, next: NextFunction) => {
   }
 };
 
-export { protect, isStudent, isInstructor, isStaff, isAdmin, isSuperAdmin };
+const optionalProtect = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
+  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+    try {
+      const token = req.headers.authorization.split(' ')[1];
+      const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as DecodedToken;
+      req.user = await prisma.user.findUnique({
+        where: { id: decoded.id },
+        select: { id: true, fullName: true, email: true, role: true },
+      });
+    } catch (e) {
+      // Ignore invalid token, proceed as guest
+    }
+  }
+  next();
+});
+
+export { protect, optionalProtect, isStudent, isInstructor, isStaff, isAdmin, isSuperAdmin };
