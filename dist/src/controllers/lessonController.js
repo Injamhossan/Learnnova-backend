@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deleteLesson = exports.updateLesson = exports.addLesson = exports.deleteSection = exports.updateSection = exports.addSection = void 0;
+exports.getYoutubeDuration = exports.deleteLesson = exports.updateLesson = exports.addLesson = exports.deleteSection = exports.updateSection = exports.addSection = void 0;
 const express_async_handler_1 = __importDefault(require("express-async-handler"));
 const db_1 = require("../config/db");
 // Helper to check course ownership
@@ -164,3 +164,37 @@ const deleteLesson = (0, express_async_handler_1.default)(async (req, res) => {
     res.json({ message: 'Lesson removed' });
 });
 exports.deleteLesson = deleteLesson;
+// @desc    Get YouTube video duration
+const getYoutubeDuration = (0, express_async_handler_1.default)(async (req, res) => {
+    const url = req.query.url;
+    if (!url) {
+        res.status(400);
+        throw new Error('URL is required');
+    }
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=|shorts\/)([^#\&\?]*).*/;
+    const match = url.match(regExp);
+    const videoId = (match && match[2].length === 11) ? match[2] : null;
+    if (!videoId) {
+        res.status(400);
+        throw new Error('Invalid YouTube URL');
+    }
+    try {
+        const response = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            }
+        });
+        const html = await response.text();
+        const durationMatch = html.match(/"lengthSeconds":"(\d+)"/);
+        if (durationMatch) {
+            res.json({ durationSeconds: parseInt(durationMatch[1], 10) });
+        }
+        else {
+            res.status(404).json({ error: 'Duration not found' });
+        }
+    }
+    catch (error) {
+        res.status(500).json({ error: 'Failed to fetch duration' });
+    }
+});
+exports.getYoutubeDuration = getYoutubeDuration;

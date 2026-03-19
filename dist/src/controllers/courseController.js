@@ -61,7 +61,10 @@ const getMyCourses = (0, express_async_handler_1.default)(async (req, res) => {
         throw new Error('Instructor profile not found');
     }
     const courses = await db_1.prisma.course.findMany({
-        where: { instructorId },
+        where: {
+            instructorId,
+            deletedAt: null
+        },
         include: {
             category: { select: { name: true, slug: true } },
             _count: { select: { enrollments: true } }
@@ -91,6 +94,10 @@ const createCourse = (0, express_async_handler_1.default)(async (req, res) => {
             whatYouWillLearn: req.body.whatYouWillLearn || [],
             requirements: req.body.requirements || [],
         },
+        include: {
+            category: { select: { name: true, slug: true } },
+            _count: { select: { enrollments: true } }
+        }
     });
     res.status(201).json(course);
 });
@@ -132,7 +139,11 @@ const updateCourse = (0, express_async_handler_1.default)(async (req, res) => {
     }
     const updatedCourse = await db_1.prisma.course.update({
         where: { id: courseId },
-        data
+        data,
+        include: {
+            category: { select: { name: true, slug: true } },
+            _count: { select: { enrollments: true } }
+        }
     });
     res.json(updatedCourse);
 });
@@ -233,7 +244,26 @@ const getCourseDetail = (0, express_async_handler_1.default)(async (req, res) =>
         res.status(404);
         throw new Error('Course not found');
     }
-    res.json(course);
+    let completedLessonIds = [];
+    if (req.user) {
+        const progress = await db_1.prisma.lessonProgress.findMany({
+            where: {
+                userId: req.user.id,
+                isCompleted: true,
+                lesson: { section: { courseId: course.id } }
+            },
+            select: { lessonId: true }
+        });
+        completedLessonIds = progress.map((p) => p.lessonId);
+    }
+    const sectionsWithProgress = course.sections.map((sec) => ({
+        ...sec,
+        lessons: sec.lessons.map((les) => ({
+            ...les,
+            isCompleted: completedLessonIds.includes(les.id)
+        }))
+    }));
+    res.json({ ...course, sections: sectionsWithProgress });
 });
 exports.getCourseDetail = getCourseDetail;
 // @desc    Get all categories for selection

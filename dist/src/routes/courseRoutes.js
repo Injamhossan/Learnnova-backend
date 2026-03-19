@@ -11,12 +11,14 @@ const router = express_1.default.Router();
 // Public routes
 router.get('/', courseController_1.getCourses);
 router.get('/categories', courseController_1.getCategories);
-router.get('/:idOrSlug', courseController_1.getCourseDetail);
+// Authenticated routes (Specific)
+router.get('/utils/youtube-duration', authMiddleware_1.protect, authMiddleware_1.isStaff, lessonController_1.getYoutubeDuration);
+router.get('/my-courses', authMiddleware_1.protect, authMiddleware_1.isInstructor, courseController_1.getMyCourses);
+router.get('/instructor/stats', authMiddleware_1.protect, authMiddleware_1.isInstructor, courseController_1.getInstructorStats);
+// Public routes (Generic parameter)
+router.get('/:idOrSlug', authMiddleware_1.optionalProtect, courseController_1.getCourseDetail);
 // Authenticated routes
 router.use(authMiddleware_1.protect);
-// Only instructors can create and see their dashboard
-router.get('/my-courses', authMiddleware_1.isInstructor, courseController_1.getMyCourses);
-router.get('/instructor/stats', authMiddleware_1.isInstructor, courseController_1.getInstructorStats);
 router.post('/', authMiddleware_1.isInstructor, courseController_1.createCourse);
 // Staff (Instructor, Admin, SuperAdmin) can manage (Update/Delete)
 // Note: updateCourse/deleteCourse should still check ownership internal to the controller 

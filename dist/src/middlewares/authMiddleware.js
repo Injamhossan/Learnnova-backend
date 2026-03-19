@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.isSuperAdmin = exports.isAdmin = exports.isStaff = exports.isInstructor = exports.isStudent = exports.protect = void 0;
+exports.isSuperAdmin = exports.isAdmin = exports.isStaff = exports.isInstructor = exports.isStudent = exports.optionalProtect = exports.protect = void 0;
 const express_async_handler_1 = __importDefault(require("express-async-handler"));
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const db_1 = require("../config/db");
@@ -104,3 +104,20 @@ const isStudent = (req, res, next) => {
     }
 };
 exports.isStudent = isStudent;
+const optionalProtect = (0, express_async_handler_1.default)(async (req, res, next) => {
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+        try {
+            const token = req.headers.authorization.split(' ')[1];
+            const decoded = jsonwebtoken_1.default.verify(token, process.env.JWT_SECRET);
+            req.user = await db_1.prisma.user.findUnique({
+                where: { id: decoded.id },
+                select: { id: true, fullName: true, email: true, role: true },
+            });
+        }
+        catch (e) {
+            // Ignore invalid token, proceed as guest
+        }
+    }
+    next();
+});
+exports.optionalProtect = optionalProtect;
