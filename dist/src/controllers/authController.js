@@ -5,7 +5,6 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.requestEmailVerification = exports.verifyEmail = exports.resetPassword = exports.forgotPassword = exports.socialLogin = exports.registerUser = exports.authUser = void 0;
 const crypto_1 = __importDefault(require("crypto"));
-const path_1 = __importDefault(require("path"));
 const express_async_handler_1 = __importDefault(require("express-async-handler"));
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const db_1 = require("../config/db");
@@ -67,11 +66,6 @@ const registerUser = (0, express_async_handler_1.default)(async (req, res) => {
             email: newUser.email,
             subject: 'Learnova - Email Verification',
             message: emailHtml,
-            attachments: [{
-                    filename: 'NavLogo.png',
-                    path: path_1.default.join(__dirname, '..', 'assets', 'NavLogo.png'),
-                    cid: 'logo'
-                }]
         });
         return newUser;
     });
@@ -160,11 +154,6 @@ const forgotPassword = (0, express_async_handler_1.default)(async (req, res) => 
             email: user.email,
             subject: 'Learnova - Password Reset Request',
             message: emailHtml,
-            attachments: [{
-                    filename: 'NavLogo.png',
-                    path: path_1.default.join(__dirname, '..', 'assets', 'NavLogo.png'),
-                    cid: 'logo'
-                }]
         });
         res.status(200).json({ message: 'Email sent' });
     }
@@ -275,11 +264,6 @@ const requestEmailVerification = (0, express_async_handler_1.default)(async (req
         email: user.email,
         subject: 'Learnova - Email Verification',
         message: emailHtml,
-        attachments: [{
-                filename: 'NavLogo.png',
-                path: path_1.default.join(__dirname, '..', 'assets', 'NavLogo.png'),
-                cid: 'logo'
-            }]
     });
     res.status(200).json({ message: 'Verification code sent to email' });
 });

@@ -76,11 +76,6 @@ const registerUser = asyncHandler(async (req: Request, res: Response) => {
       email: newUser.email,
       subject: 'Learnova - Email Verification',
       message: emailHtml,
-      attachments: [{
-        filename: 'NavLogo.png',
-        path: path.join(__dirname, '..', 'assets', 'NavLogo.png'),
-        cid: 'logo'
-      }]
     });
 
     return newUser;
@@ -188,11 +183,6 @@ const forgotPassword = asyncHandler(async (req: Request, res: Response) => {
       email: user.email,
       subject: 'Learnova - Password Reset Request',
       message: emailHtml,
-      attachments: [{
-        filename: 'NavLogo.png',
-        path: path.join(__dirname, '..', 'assets', 'NavLogo.png'),
-        cid: 'logo'
-      }]
     });
 
     res.status(200).json({ message: 'Email sent' });
@@ -324,11 +314,6 @@ const requestEmailVerification = asyncHandler(async (req: Request, res: Response
     email: user.email,
     subject: 'Learnova - Email Verification',
     message: emailHtml,
-    attachments: [{
-      filename: 'NavLogo.png',
-      path: path.join(__dirname, '..', 'assets', 'NavLogo.png'),
-      cid: 'logo'
-    }]
   });
 
   res.status(200).json({ message: 'Verification code sent to email' });

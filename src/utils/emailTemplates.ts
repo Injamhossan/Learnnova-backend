@@ -132,7 +132,7 @@ export const getEmailTemplate = (title: string, message: string, code?: string, 
     <body>
       <div class="container">
         <div class="header">
-          <img src="cid:logo" alt="Learnova Logo" style="height: 48px; width: auto; max-width: 200px; object-contain: contain;">
+          <img src="${process.env.FRONTEND_URL || 'https://learnnova-ih.vercel.app'}/NavLogo.png" alt="Learnova Logo" style="height: 48px; width: auto; max-width: 200px; object-fit: contain;">
           <p>The Future of Learning</p>
         </div>
         <div class="content">

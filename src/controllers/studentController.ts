@@ -76,11 +76,6 @@ const enrollInCourse = asyncHandler(async (req: Request, res: Response) => {
           email: user.email,
           subject: `Learnova - Enrolled: ${course.title}`,
           message: emailHtml,
-          attachments: [{
-            filename: 'NavLogo.png',
-            path: path.join(__dirname, '..', 'assets', 'NavLogo.png'),
-            cid: 'logo'
-          }]
         });
       }
     } catch (emailErr) {

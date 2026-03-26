@@ -5,7 +5,6 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getDashboardStats = exports.updateLessonProgress = exports.removeFromWishlist = exports.addToWishlist = exports.getWishlist = exports.getMyCertificates = exports.getMyEnrollments = exports.getMyEnrolledCourses = exports.dropCourse = exports.enrollInCourse = void 0;
 const express_async_handler_1 = __importDefault(require("express-async-handler"));
-const path_1 = __importDefault(require("path"));
 const db_1 = require("../config/db");
 const sendEmail_1 = __importDefault(require("../utils/sendEmail"));
 const emailTemplates_1 = require("../utils/emailTemplates");
@@ -67,11 +66,6 @@ const enrollInCourse = (0, express_async_handler_1.default)(async (req, res) => 
                     email: user.email,
                     subject: `Learnova - Enrolled: ${course.title}`,
                     message: emailHtml,
-                    attachments: [{
-                            filename: 'NavLogo.png',
-                            path: path_1.default.join(__dirname, '..', 'assets', 'NavLogo.png'),
-                            cid: 'logo'
-                        }]
                 });
             }
         }
