@@ -1,6 +1,6 @@
 # Learnova Backend API 🚀
 
-Welcome to the **Learnova Backend**! This is a robust, scalable API built with **Node.js**, **Express**, and **Prisma** to power the Learnova LMS platform.
+Welcome to the **Learnova Backend**! This is a robust, scalable API built with **Node.js**, **NestJS**, and **Prisma** to power the Learnova LMS platform.
 
 ## 📖 About Learnova
 Learnova is a premium online learning platform designed to bridge the gap between expert instructors and eager students. The backend handles complex role-based authentication, course management, dynamic filtering, and real-time notifications.
@@ -19,7 +19,7 @@ Learnova is a premium online learning platform designed to bridge the gap betwee
 
 ## 🏗️ Tech Stack
 - **Runtime**: Node.js
-- **Framework**: Express.js
+- **Framework**: NestJS (with Express)
 - **ORM**: Prisma
 - **Database**: PostgreSQL
 - **Security**: JWT, Bcrypt, Helmet
